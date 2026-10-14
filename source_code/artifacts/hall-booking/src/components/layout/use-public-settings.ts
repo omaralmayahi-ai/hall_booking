@@ -16,7 +16,7 @@ export interface PublicSettings {
 
 export const PUBLIC_SETTINGS_KEY = ["/api/public/settings"];
 
-export function usePublicSettings() {
+export function usePublicSettings(opts?: { fresh?: boolean }) {
   return useQuery<PublicSettings>({
     queryKey: PUBLIC_SETTINGS_KEY,
     queryFn: async () => {
@@ -24,7 +24,8 @@ export function usePublicSettings() {
       if (!r.ok) throw new Error("failed");
       return r.json();
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: opts?.fresh ? 0 : 60 * 1000,
+    refetchOnMount: opts?.fresh ? "always" : true,
   });
 }
 

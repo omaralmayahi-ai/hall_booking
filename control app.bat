@@ -14,7 +14,11 @@ if %errorlevel% neq 0 (
     echo ==============================================================================
     echo  [!] The Control Center needs Administrator rights - requesting elevation...
     echo ==============================================================================
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    if "%~1"=="" (
+        powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    ) else (
+        powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '%~1' -Verb RunAs"
+    )
     exit /b
 )
 
@@ -42,7 +46,16 @@ if exist "%CONFIG%" (
 )
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
+set "UPDATES_DIR=%ROOT%\updates"
+if not exist "%UPDATES_DIR%" mkdir "%UPDATES_DIR%"
 cd /d "%APP%"
+
+:: Command-line mode:  "control app.bat" update   (used by updates\update-now.bat)
+set "CLI="
+if /i "%~1"=="update" (
+    set "CLI=1"
+    goto update
+)
 
 title Hall Booking Platform - Control Center - Port %PORT%
 
@@ -166,14 +179,17 @@ if errorlevel 1 (
     goto pause_menu
 )
 echo [3/5] Getting the new version...
-if exist "%ROOT%\.git" (
+call :find_update_zip
+if defined UPZIP (
+    call :apply_update_zip || goto pause_menu
+) else if exist "%ROOT%\.git" (
     git -C "%ROOT%" pull --ff-only
 ) else if exist "%APP%\.git" (
     git -C "%APP%" pull --ff-only
 ) else (
-    echo      No Git repository - copy the new version files into:
-    echo      %APP%
-    echo      Keep the data, backups and logs folders and config.env unchanged.
+    echo      No update package in %UPDATES_DIR% and no Git repository.
+    echo      Put the update zip file in: %UPDATES_DIR%
+    echo      or copy the new version files into: %APP%
     echo      Then press any key to continue...
     pause >nul
 )
@@ -182,12 +198,18 @@ call :install_and_build || goto pause_menu
 echo [5/5] Upgrading the database...
 call :migrate || goto pause_menu
 if "%RESUME_SERVICE%"=="1" (
-    echo [+] Restarting the Windows service...
+    echo [+] Restarting the Windows service with the new version...
+    node "%APP%\tools\service.mjs" write-xml "%SERVICE_DIR%" "%SERVICE_ID%" "%APP%" "%DATA_DIR%" "%LOG_DIR%" "%CONFIG%" "%PORT%" >nul
+    call :clear_stale_lock
     "%SERVICE_EXE%" start >nul
+    call :wait_up 60
 )
 if "%RESUME_TEMP%"=="1" call :start_background
+call :make_shortcut >nul
 echo.
 echo [+] Update completed successfully.
+if "%RESUME_SERVICE%"=="1" start "" "http://localhost:%PORT%"
+call :swap_control_app
 goto pause_menu
 
 :: ==============================================================================
@@ -529,6 +551,7 @@ goto pause_menu
 :pause_menu
 echo.
 pause
+if "%CLI%"=="1" exit /b 0
 goto menu
 
 :: ##############################################################################
@@ -720,3 +743,65 @@ if exist "%LNK%" (
     echo [!] Could not create the desktop shortcut.
 )
 exit /b 0
+
+:: ------------------------------------------------------------------------------
+:: Update packages: the newest  updates\*.zip  (hall_booking\... inside) is applied,
+:: then moved to updates\applied. data, backups, logs and config.env are untouched.
+:: ------------------------------------------------------------------------------
+:find_update_zip
+set "UPZIP="
+for /f "delims=" %%f in ('dir /b /a-d /o-d "%UPDATES_DIR%\*.zip" 2^>nul') do if not defined UPZIP set "UPZIP=%%f"
+exit /b 0
+
+:apply_update_zip
+echo [+] Applying update package: %UPZIP%
+set "STAGE=%UPDATES_DIR%\_staging"
+if exist "%STAGE%" rmdir /s /q "%STAGE%"
+mkdir "%STAGE%"
+pushd "%STAGE%"
+tar -xf "%UPDATES_DIR%\%UPZIP%"
+popd
+set "SRC=%STAGE%\hall_booking"
+if not exist "%SRC%\source_code\package.json" set "SRC=%STAGE%"
+if not exist "%SRC%\source_code\package.json" (
+    echo [ERROR] The update package is not valid: %UPZIP%
+    exit /b 1
+)
+robocopy "%SRC%\source_code" "%APP%" /E /NFL /NDL /NJH /NJS /NP /XD node_modules data dist >nul
+if errorlevel 8 (
+    echo [ERROR] Could not copy the new files.
+    exit /b 1
+)
+if exist "%SRC%\docs" robocopy "%SRC%\docs" "%ROOT%\docs" /E /NFL /NDL /NJH /NJS /NP >nul
+if exist "%SRC%\README.md" copy /y "%SRC%\README.md" "%ROOT%\README.md" >nul
+if exist "%SRC%\control app.bat" copy /y "%SRC%\control app.bat" "%UPDATES_DIR%\control app.bat.new" >nul
+if not exist "%UPDATES_DIR%\applied" mkdir "%UPDATES_DIR%\applied"
+move /y "%UPDATES_DIR%\%UPZIP%" "%UPDATES_DIR%\applied\" >nul
+rmdir /s /q "%STAGE%"
+echo [+] New files copied.
+exit /b 0
+
+:: A running batch file must not overwrite itself - a helper replaces it after this window closes.
+:swap_control_app
+if not exist "%UPDATES_DIR%\control app.bat.new" exit /b 0
+fc /b "%UPDATES_DIR%\control app.bat.new" "%~f0" >nul 2>&1
+if not errorlevel 1 (
+    del /q "%UPDATES_DIR%\control app.bat.new" >nul 2>&1
+    exit /b 0
+)
+(
+    echo @echo off
+    echo title Hall Booking Platform - update finished
+    echo timeout /t 3 /nobreak ^>nul
+    echo copy /y "%UPDATES_DIR%\control app.bat.new" "%~f0" ^>nul
+    echo del /q "%UPDATES_DIR%\control app.bat.new" ^>nul
+    echo echo.
+    echo echo  [+] Update completed successfully. control app.bat was updated too.
+    echo echo  [+] Open the platform: http://localhost:%PORT%
+    echo echo.
+    echo pause
+    echo del /q "%%~f0" ^>nul
+) > "%UPDATES_DIR%\_swap.bat"
+start "" "%UPDATES_DIR%\_swap.bat"
+:: Close this window right away so the file can be replaced safely.
+exit

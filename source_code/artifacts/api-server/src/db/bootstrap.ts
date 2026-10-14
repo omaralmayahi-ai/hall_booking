@@ -132,6 +132,15 @@ export const MIGRATIONS: Migration[] = [
       UPDATE public.platform_settings SET password_min_length = 6 WHERE password_min_length > 6;
     `,
   },
+  {
+    id: "006_notification_batches",
+    description: "Track manually sent notifications (sender, batch) for the sent-history view",
+    sql: `
+      ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS batch_id text;
+      ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS sent_by integer;
+      CREATE INDEX IF NOT EXISTS notifications_batch_idx ON public.notifications (batch_id) WHERE batch_id IS NOT NULL;
+    `,
+  },
 ];
 
 async function tableExists(name: string): Promise<boolean> {

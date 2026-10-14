@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import {
   ListNotificationsQueryParams,
@@ -32,7 +33,11 @@ router.post("/notifications", requireAuth, requireRole("admin", "relations_manag
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { targetRole, targetUserId, ...notifData } = parsed.data;
+  const { targetRole, targetUserId: rawTarget, ...notifData } = parsed.data;
+  // Older clients sent `userId` instead of `targetUserId`.
+  const targetUserId = rawTarget ?? (Number.isInteger(Number(req.body?.userId)) && Number(req.body?.userId) > 0 ? Number(req.body.userId) : undefined);
+  const type = req.body?.type === "system" ? ("system" as const) : ("general" as const);
+  const batchId = randomUUID();
   if (!notifData.title?.trim() || !notifData.message?.trim()) {
     res.status(400).json({ error: "يرجى إدخال عنوان ونص الإشعار" });
     return;
@@ -61,11 +66,42 @@ router.post("/notifications", requireAuth, requireRole("admin", "relations_manag
       message: clip(notifData.message, 2000)!,
       messageAr: clip(notifData.messageAr, 2000),
       userId,
-      type: "general" as const,
+      type,
+      batchId,
+      sentBy: req.user!.id,
     })));
   }
   await logAudit(req.user!.id, req.user!.username, "send_notification", "notification", undefined, `${recipients.length} recipients`, clientIp(req));
   res.status(201).json({ sent: recipients.length });
+});
+
+/** History of manually sent notifications with delivery / read counts. */
+router.get("/notifications/sent", requireAuth, requireRole("admin", "relations_manager"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await db
+    .select({
+      batchId: notificationsTable.batchId,
+      title: sql<string>`max(${notificationsTable.titleAr})`,
+      message: sql<string>`max(${notificationsTable.messageAr})`,
+      type: sql<string>`max(${notificationsTable.type}::text)`,
+      sentBy: sql<number>`max(${notificationsTable.sentBy})`,
+      createdAt: sql<string>`min(${notificationsTable.createdAt})`,
+      recipients: sql<number>`count(*)::int`,
+      read: sql<number>`count(*) filter (where ${notificationsTable.isRead})::int`,
+    })
+    .from(notificationsTable)
+    .where(isNotNull(notificationsTable.batchId))
+    .groupBy(notificationsTable.batchId)
+    .orderBy(sql`min(${notificationsTable.createdAt}) desc`)
+    .limit(50);
+  const senders = await db.select({ id: usersTable.id, username: usersTable.username, departmentName: usersTable.departmentName }).from(usersTable);
+  res.json(
+    rows.map((r) => {
+      const s = senders.find((u) => u.id === Number(r.sentBy));
+      const raw = r.createdAt as unknown;
+      const at = raw instanceof Date ? raw : new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(String(raw)) ? String(raw) : `${String(raw).replace(" ", "T")}Z`);
+      return { ...r, createdAt: at.toISOString(), sender: s?.departmentName || s?.username || "" };
+    }),
+  );
 });
 
 router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {

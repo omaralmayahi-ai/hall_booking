@@ -8,7 +8,8 @@ import { systemNameOf, usePublicSettings } from "./use-public-settings";
  * The toolbar is hidden when printing; "Save as PDF" in the browser print dialog produces the PDF.
  */
 export function PrintLayout({ title, subtitle, children, ready = true, orientation = "portrait" }: { title: string; subtitle?: ReactNode; children: ReactNode; ready?: boolean; orientation?: "portrait" | "landscape" }) {
-  const { data: s } = usePublicSettings();
+  // Always read the latest print settings (header lines, signature) — never a cached copy.
+  const { data: s } = usePublicSettings({ fresh: true });
   const p = s?.options?.print;
   const id = s?.options?.identity;
   const lines = [p?.headerLine1, p?.headerLine2, p?.headerLine3].filter(Boolean);
@@ -27,7 +28,7 @@ export function PrintLayout({ title, subtitle, children, ready = true, orientati
         <div className="max-w-[210mm] mx-auto flex items-center justify-between gap-2 px-4 py-2.5">
           <p className="text-sm font-semibold truncate">{title}</p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => window.print()} disabled={!ready}><Printer className="w-4 h-4" />طباعة / حفظ PDF</Button>
+            <Button size="sm" onClick={() => window.print()} disabled={!ready || !s}><Printer className="w-4 h-4" />طباعة / حفظ PDF</Button>
             <Button size="sm" variant="outline" onClick={() => window.close()}><X className="w-4 h-4" />إغلاق</Button>
           </div>
         </div>

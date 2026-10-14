@@ -72,7 +72,7 @@ export default function PrintBooking() {
               <p className="border-t border-dashed border-slate-400 pt-1 text-slate-500 text-xs">التوقيع</p>
             </div>
             <div className="text-center space-y-10">
-              <p className="font-semibold">{print?.signatureTitle || "مدير العلاقات"}{b.approvedBy ? ` — ${b.approvedBy}` : ""}</p>
+              <p className="font-semibold">{print?.signatureTitle?.trim() || "مدير العلاقات"}</p>
               <p className="border-t border-dashed border-slate-400 pt-1 text-slate-500 text-xs">التوقيع والختم</p>
             </div>
           </div>

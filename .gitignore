@@ -10,3 +10,7 @@ config.env
 
 # Organisation data export (users, password hashes, audit log) - never commit to a public repository
 source_code/database/initial-data.sql
+updates/*.zip
+updates/applied/
+updates/_staging/
+updates/*.new

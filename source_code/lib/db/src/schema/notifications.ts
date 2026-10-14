@@ -22,6 +22,9 @@ export const notificationsTable = pgTable("notifications", {
   type: notificationTypeEnum("type").notNull().default("general"),
   relatedBookingId: integer("related_booking_id"),
   isRead: boolean("is_read").notNull().default(false),
+  /** Set on notifications sent manually (broadcast); groups one send operation. */
+  batchId: text("batch_id"),
+  sentBy: integer("sent_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
