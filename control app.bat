@@ -56,6 +56,7 @@ if /i "%~1"=="update" (
     set "CLI=1"
     goto update
 )
+if /i "%~1"=="start" goto svc_start
 :: Re-entry after the update replaced this file (same window, no extra terminal).
 if /i "%~1"=="updated" (
     title Hall Booking Platform - Control Center - Port %PORT%
@@ -175,8 +176,8 @@ call :require_pnpm || goto pause_menu
 call :detect_state
 set "RESUME_SERVICE=0"
 set "RESUME_TEMP=0"
-if "%SERVICE_RUNNING%"=="1" set "RESUME_SERVICE=1"
-if "%SERVICE_RUNNING%"=="0" if "%APP_UP%"=="1" set "RESUME_TEMP=1"
+if "%SERVICE_INSTALLED%"=="1" set "RESUME_SERVICE=1"
+if "%SERVICE_INSTALLED%"=="0" if "%APP_UP%"=="1" set "RESUME_TEMP=1"
 
 echo [1/5] Stopping the platform...
 call :stop_all
@@ -236,9 +237,9 @@ if defined UPZIP (
 call :require_node || goto pause_menu
 call :require_pnpm || goto pause_menu
 call :detect_state
-set "RESUME_SERVICE=%SERVICE_RUNNING%"
+set "RESUME_SERVICE=%SERVICE_INSTALLED%"
 set "RESUME_TEMP=0"
-if "%SERVICE_RUNNING%"=="0" if "%APP_UP%"=="1" set "RESUME_TEMP=1"
+if "%SERVICE_INSTALLED%"=="0" if "%APP_UP%"=="1" set "RESUME_TEMP=1"
 echo [1/3] Stopping the platform...
 call :stop_all
 echo [2/3] Installing packages and building...
@@ -574,7 +575,7 @@ goto pause_menu
 :pause_menu
 echo.
 pause
-if "%CLI%"=="1" exit /b 0
+set "CLI="
 goto menu
 
 :: ##############################################################################
