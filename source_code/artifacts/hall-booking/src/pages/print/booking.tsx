@@ -67,7 +67,7 @@ export default function PrintBooking() {
             )}
           </div>
           {/* Signatory title only, on the left side of the page */}
-          <div className="flex justify-end pt-12 text-sm">
+          <div className="flex justify-end pt-36 text-sm">
             <p className="font-bold text-center w-1/2">{print?.signatureTitle?.trim() || "مدير العلاقات"}</p>
           </div>
         </div>
