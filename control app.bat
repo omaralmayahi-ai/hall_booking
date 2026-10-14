@@ -734,9 +734,13 @@ if not exist "%DATA_DIR%\pglite" exit /b 0
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%t"
 set "BFILE=%BACKUP_DIR%\hall-booking-%~1-%TS%.zip"
 echo [+] Creating backup: %BFILE%
-powershell -NoProfile -Command "Compress-Archive -LiteralPath '%DATA_DIR%\pglite' -DestinationPath '%BFILE%' -CompressionLevel Optimal -Force"
+:: Windows tar (built in) is used first - PowerShell Compress-Archive fails on some data files.
+if exist "%BFILE%" del /q "%BFILE%" >nul 2>&1
+tar -a -c -f "%BFILE%" -C "%DATA_DIR%" pglite >nul 2>"%LOG_DIR%\backup-error.log"
+if errorlevel 1 if exist "%BFILE%" del /q "%BFILE%" >nul 2>&1
+if not exist "%BFILE%" powershell -NoProfile -Command "Compress-Archive -LiteralPath '%DATA_DIR%\pglite' -DestinationPath '%BFILE%' -CompressionLevel Optimal -Force" 2>>"%LOG_DIR%\backup-error.log"
 if not exist "%BFILE%" (
-    echo [ERROR] Backup could not be created.
+    echo [ERROR] Backup could not be created - details: %LOG_DIR%\backup-error.log
     exit /b 1
 )
 echo [+] Backup saved.
