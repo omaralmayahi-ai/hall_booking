@@ -50,11 +50,19 @@ set "UPDATES_DIR=%ROOT%\updates"
 if not exist "%UPDATES_DIR%" mkdir "%UPDATES_DIR%"
 cd /d "%APP%"
 
-:: Command-line mode:  "control app.bat" update   (used by updates\update-now.bat)
+:: Command-line mode:  "control app.bat" update
 set "CLI="
 if /i "%~1"=="update" (
     set "CLI=1"
     goto update
+)
+:: Re-entry after the update replaced this file (same window, no extra terminal).
+if /i "%~1"=="updated" (
+    title Hall Booking Platform - Control Center - Port %PORT%
+    echo.
+    echo [+] control app.bat was updated to the new version as well.
+    echo [+] Platform address: http://localhost:%PORT%
+    goto pause_menu
 )
 
 title Hall Booking Platform - Control Center - Port %PORT%
@@ -209,7 +217,7 @@ call :make_shortcut >nul
 echo.
 echo [+] Update completed successfully.
 if "%RESUME_SERVICE%"=="1" start "" "http://localhost:%PORT%"
-call :swap_control_app
+goto swap_control_app
 goto pause_menu
 
 :: ==============================================================================
@@ -217,21 +225,36 @@ goto pause_menu
 :: ==============================================================================
 :rebuild
 cls
+echo ==============================================================================
+echo   Rebuild
+echo ==============================================================================
+call :find_update_zip
+if defined UPZIP (
+    echo [+] An update package was found in %UPDATES_DIR% - running the full update instead.
+    goto update
+)
 call :require_node || goto pause_menu
 call :require_pnpm || goto pause_menu
 call :detect_state
 set "RESUME_SERVICE=%SERVICE_RUNNING%"
-if "%APP_UP%"=="1" call :stop_all
-pushd "%APP%"
-call pnpm run build
-set "RC=%errorlevel%"
-popd
-if not "%RC%"=="0" (
-    echo [ERROR] Build failed - see the messages above.
-    goto pause_menu
+set "RESUME_TEMP=0"
+if "%SERVICE_RUNNING%"=="0" if "%APP_UP%"=="1" set "RESUME_TEMP=1"
+echo [1/3] Stopping the platform...
+call :stop_all
+echo [2/3] Installing packages and building...
+call :install_and_build || goto pause_menu
+echo [3/3] Upgrading the database...
+call :migrate || goto pause_menu
+if "%RESUME_SERVICE%"=="1" (
+    echo [+] Restarting the Windows service with the new build...
+    node "%APP%\tools\service.mjs" write-xml "%SERVICE_DIR%" "%SERVICE_ID%" "%APP%" "%DATA_DIR%" "%LOG_DIR%" "%CONFIG%" "%PORT%" >nul
+    call :clear_stale_lock
+    "%SERVICE_EXE%" start >nul
+    call :wait_up 60
 )
-echo [+] Build completed.
-if "%RESUME_SERVICE%"=="1" "%SERVICE_EXE%" start >nul
+if "%RESUME_TEMP%"=="1" call :start_background
+echo.
+echo [+] Rebuild completed.
 goto pause_menu
 
 :: ==============================================================================
@@ -781,27 +804,19 @@ rmdir /s /q "%STAGE%"
 echo [+] New files copied.
 exit /b 0
 
-:: A running batch file must not overwrite itself - a helper replaces it after this window closes.
+:: A running batch file must not overwrite itself line by line. The copy and the
+:: hand-over to the new file are parsed as ONE block, so cmd jumps straight into the
+:: new control app.bat in this same window - no helper window, no second terminal.
 :swap_control_app
-if not exist "%UPDATES_DIR%\control app.bat.new" exit /b 0
+if not exist "%UPDATES_DIR%\control app.bat.new" goto pause_menu
 fc /b "%UPDATES_DIR%\control app.bat.new" "%~f0" >nul 2>&1
 if not errorlevel 1 (
     del /q "%UPDATES_DIR%\control app.bat.new" >nul 2>&1
-    exit /b 0
+    goto pause_menu
 )
 (
-    echo @echo off
-    echo title Hall Booking Platform - update finished
-    echo timeout /t 3 /nobreak ^>nul
-    echo copy /y "%UPDATES_DIR%\control app.bat.new" "%~f0" ^>nul
-    echo del /q "%UPDATES_DIR%\control app.bat.new" ^>nul
-    echo echo.
-    echo echo  [+] Update completed successfully. control app.bat was updated too.
-    echo echo  [+] Open the platform: http://localhost:%PORT%
-    echo echo.
-    echo pause
-    echo del /q "%%~f0" ^>nul
-) > "%UPDATES_DIR%\_swap.bat"
-start "" "%UPDATES_DIR%\_swap.bat"
-:: Close this window right away so the file can be replaced safely.
-exit
+    copy /y "%UPDATES_DIR%\control app.bat.new" "%~f0" >nul
+    del /q "%UPDATES_DIR%\control app.bat.new" >nul 2>&1
+    if exist "%UPDATES_DIR%\update-now.bat" move /y "%UPDATES_DIR%\update-now.bat" "%UPDATES_DIR%\archive\" >nul 2>&1
+    "%~f0" updated
+)
