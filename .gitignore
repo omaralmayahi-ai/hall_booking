@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+backups/
+logs/
+service/
+config.env
+*.tsbuildinfo
+.tsbuildinfo
+
+# Organisation data export (users, password hashes, audit log) - never commit to a public repository
+source_code/database/initial-data.sql

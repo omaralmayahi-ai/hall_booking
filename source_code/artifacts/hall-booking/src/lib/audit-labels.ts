@@ -1,0 +1,50 @@
+export const AUDIT_ACTIONS: Record<string, { label: string; tone: string }> = {
+  login: { label: "تسجيل دخول", tone: "bg-purple-100 text-purple-700" },
+  logout: { label: "تسجيل خروج", tone: "bg-muted text-foreground" },
+  login_failed: { label: "محاولة دخول فاشلة", tone: "bg-red-100 text-red-700" },
+  account_locked: { label: "قفل حساب", tone: "bg-red-100 text-red-700" },
+  change_password: { label: "تغيير كلمة المرور", tone: "bg-amber-100 text-amber-700" },
+  password_reset_requested: { label: "طلب استعادة كلمة المرور", tone: "bg-amber-100 text-amber-700" },
+  password_reset_resolved: { label: "تعيين كلمة مرور مؤقتة", tone: "bg-amber-100 text-amber-700" },
+  create_user: { label: "إنشاء مستخدم", tone: "bg-emerald-100 text-emerald-700" },
+  update_user: { label: "تعديل مستخدم", tone: "bg-primary/10 text-primary" },
+  delete_user: { label: "حذف مستخدم", tone: "bg-red-100 text-red-700" },
+  activate_user: { label: "تفعيل مستخدم", tone: "bg-emerald-100 text-emerald-700" },
+  deactivate_user: { label: "تعطيل مستخدم", tone: "bg-red-100 text-red-700" },
+  create_hall: { label: "إضافة قاعة", tone: "bg-emerald-100 text-emerald-700" },
+  update_hall: { label: "تعديل قاعة", tone: "bg-primary/10 text-primary" },
+  delete_hall: { label: "حذف قاعة", tone: "bg-red-100 text-red-700" },
+  create_booking: { label: "طلب حجز", tone: "bg-emerald-100 text-emerald-700" },
+  update_booking: { label: "تعديل حجز", tone: "bg-primary/10 text-primary" },
+  approve_booking: { label: "موافقة على حجز", tone: "bg-green-100 text-green-700" },
+  reject_booking: { label: "رفض حجز", tone: "bg-red-100 text-red-700" },
+  cancel_booking: { label: "إلغاء حجز", tone: "bg-amber-100 text-amber-700" },
+  emergency_cancel_booking: { label: "إلغاء طارئ", tone: "bg-red-100 text-red-700" },
+  change_booking_status: { label: "تغيير حالة حجز", tone: "bg-primary/10 text-primary" },
+  create_maintenance: { label: "تسجيل صيانة", tone: "bg-orange-100 text-orange-700" },
+  update_maintenance: { label: "تحديث صيانة", tone: "bg-orange-100 text-orange-700" },
+  delete_maintenance: { label: "حذف ملاحظة صيانة", tone: "bg-red-100 text-red-700" },
+  update_settings: { label: "تعديل الإعدادات", tone: "bg-primary/10 text-primary" },
+  send_notification: { label: "إرسال إشعار", tone: "bg-teal-100 text-teal-700" },
+  factory_reset: { label: "إعادة ضبط", tone: "bg-red-100 text-red-700" },
+};
+
+export const AUDIT_ENTITIES: Record<string, string> = {
+  user: "مستخدم",
+  hall: "قاعة",
+  booking: "حجز",
+  maintenance: "صيانة",
+  settings: "الإعدادات",
+  notification: "إشعارات",
+  notifications: "الإشعارات",
+  reviews: "التقييمات",
+  audit_log: "سجل الأحداث",
+  bookings: "الحجوزات",
+  completed_bookings: "الحجوزات المكتملة",
+  accounts: "الحسابات",
+  full: "شاملة",
+};
+
+export const actionLabel = (a: string) => AUDIT_ACTIONS[a]?.label ?? a;
+export const actionTone = (a: string) => AUDIT_ACTIONS[a]?.tone ?? "bg-muted text-foreground";
+export const entityLabel = (e: string) => AUDIT_ENTITIES[e] ?? e;

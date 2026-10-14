@@ -1,0 +1,2080 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Hall Booking Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: auth
+  - name: users
+  - name: halls
+  - name: bookings
+  - name: notifications
+  - name: reviews
+  - name: maintenance
+  - name: dashboard
+  - name: settings
+  - name: audit
+  - name: public
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # --- Auth ---
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+
+  /auth/password-reset-requests:
+    get:
+      operationId: listPasswordResetRequests
+      tags: [auth]
+      responses:
+        "200":
+          description: List of password reset requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PasswordResetRequest"
+    post:
+      operationId: createPasswordResetRequest
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequestInput"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetRequest"
+
+  /auth/password-reset-requests/{id}/resolve:
+    patch:
+      operationId: resolvePasswordResetRequest
+      tags: [auth]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolvePasswordResetInput"
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetRequest"
+
+  # --- Users ---
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, relations_manager, requesting_department]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /users/{id}/toggle-status:
+    patch:
+      operationId: toggleUserStatus
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Status toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # --- Halls ---
+  /halls:
+    get:
+      operationId: listHalls
+      tags: [halls]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [available, maintenance, disabled]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: minCapacity
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of halls
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Hall"
+    post:
+      operationId: createHall
+      tags: [halls]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HallInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hall"
+
+  /halls/{id}:
+    get:
+      operationId: getHall
+      tags: [halls]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Hall
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hall"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateHall
+      tags: [halls]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HallUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hall"
+    delete:
+      operationId: deleteHall
+      tags: [halls]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /halls/availability:
+    get:
+      operationId: getHallAvailability
+      tags: [halls]
+      parameters:
+        - name: hallId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Availability slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailabilitySlot"
+
+  # --- Bookings ---
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, partially_approved, rejected, cancelled, emergency_cancelled, completed]
+        - name: hallId
+          in: query
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+        - name: view
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "409":
+          description: Conflict with existing booking
+
+  /bookings/{id}:
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+    delete:
+      operationId: cancelBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCancellationInput"
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/approve:
+    patch:
+      operationId: approveBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingApprovalInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/reject:
+    patch:
+      operationId: rejectBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRejectionInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/emergency-cancel:
+    patch:
+      operationId: emergencyCancelBooking
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmergencyCancelInput"
+      responses:
+        "200":
+          description: Emergency cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/change-status:
+    patch:
+      operationId: changeBookingStatus
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusChangeInput"
+      responses:
+        "200":
+          description: Status changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Joined waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+    delete:
+      operationId: leaveWaitlist
+      tags: [bookings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Left waitlist
+
+  # --- Reviews ---
+  /bookings/{id}/review:
+    post:
+      operationId: createReview
+      tags: [reviews]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  /halls/{id}/reviews:
+    get:
+      operationId: listHallReviews
+      tags: [reviews]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+
+  # --- Maintenance ---
+  /maintenance:
+    get:
+      operationId: listMaintenanceNotes
+      tags: [maintenance]
+      parameters:
+        - name: hallId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, done, archived]
+      responses:
+        "200":
+          description: List of maintenance notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MaintenanceNote"
+    post:
+      operationId: createMaintenanceNote
+      tags: [maintenance]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaintenanceNoteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceNote"
+
+  /maintenance/{id}:
+    patch:
+      operationId: updateMaintenanceNote
+      tags: [maintenance]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaintenanceNoteUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceNote"
+    delete:
+      operationId: deleteMaintenanceNote
+      tags: [maintenance]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- Notifications ---
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      parameters:
+        - name: unread
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+    post:
+      operationId: sendNotification
+      tags: [notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationInput"
+      responses:
+        "201":
+          description: Sent
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    patch:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      responses:
+        "200":
+          description: All marked as read
+
+  /notifications/{id}:
+    delete:
+      operationId: deleteNotification
+      tags: [notifications]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- Dashboard ---
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, year]
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/top-halls:
+    get:
+      operationId: getTopHalls
+      tags: [dashboard]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Top halls by booking count
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HallUsageStat"
+
+  /dashboard/top-departments:
+    get:
+      operationId: getTopDepartments
+      tags: [dashboard]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Top departments by booking count
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DepartmentStat"
+
+  /dashboard/bookings-by-activity:
+    get:
+      operationId: getBookingsByActivity
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Bookings grouped by activity type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityStat"
+
+  /dashboard/utilization:
+    get:
+      operationId: getHallUtilization
+      tags: [dashboard]
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hall utilization rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HallUtilizationStat"
+
+  /dashboard/pending-requests:
+    get:
+      operationId: getPendingRequestsStats
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Pending request metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingRequestStats"
+
+  # --- Settings ---
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      responses:
+        "200":
+          description: Platform settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformSettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+
+  /settings/holidays:
+    get:
+      operationId: listHolidays
+      tags: [settings]
+      responses:
+        "200":
+          description: List of holidays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Holiday"
+    post:
+      operationId: createHoliday
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HolidayInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Holiday"
+
+  /settings/holidays/{id}:
+    delete:
+      operationId: deleteHoliday
+      tags: [settings]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # --- Factory Reset ---
+  /settings/factory-reset/full:
+    post:
+      operationId: factoryResetFull
+      tags: [settings]
+      summary: Erase all platform data except the primary admin account
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/notifications:
+    post:
+      operationId: factoryResetNotifications
+      tags: [settings]
+      summary: Erase all notifications
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/accounts:
+    post:
+      operationId: factoryResetAccounts
+      tags: [settings]
+      summary: Erase all user accounts except the primary admin, and their related data
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/bookings:
+    post:
+      operationId: factoryResetBookings
+      tags: [settings]
+      summary: Erase all booking requests
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/completed-bookings:
+    post:
+      operationId: factoryResetCompletedBookings
+      tags: [settings]
+      summary: Erase completed bookings only
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/audit-log:
+    post:
+      operationId: factoryResetAuditLog
+      tags: [settings]
+      summary: Erase the audit log
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  /settings/factory-reset/reviews:
+    post:
+      operationId: factoryResetReviews
+      tags: [settings]
+      summary: Erase all reviews
+      responses:
+        "200":
+          description: Factory reset completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FactoryResetResult"
+
+  # --- Audit ---
+  /audit/logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
+  /audit/sessions:
+    get:
+      operationId: listActiveSessions
+      tags: [audit]
+      responses:
+        "200":
+          description: Active sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActiveSession"
+
+  # --- Public ---
+  /public/halls/{id}:
+    get:
+      operationId: getPublicHall
+      tags: [public]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public hall info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicHall"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    # --- Auth ---
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    ChangePasswordInput:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+
+    PasswordResetRequest:
+      type: object
+      required: [id, userId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        departmentName:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, resolved]
+        newPassword:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    PasswordResetRequestInput:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+        reason:
+          type: string
+
+    ResolvePasswordResetInput:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+
+    # --- Users ---
+    User:
+      type: object
+      required: [id, username, role, isActive, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+          enum: [admin, relations_manager, requesting_department]
+        departmentName:
+          type: ["string", "null"]
+        phoneNumber:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isPrimary:
+          type: boolean
+        lastLogin:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserInput:
+      type: object
+      required: [username, password, role]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [admin, relations_manager, requesting_department]
+        departmentName:
+          type: string
+        phoneNumber:
+          type: string
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        role:
+          type: string
+          enum: [admin, relations_manager, requesting_department]
+        departmentName:
+          type: string
+        phoneNumber:
+          type: string
+        isActive:
+          type: boolean
+
+    # --- Halls ---
+    Hall:
+      type: object
+      required: [id, name, location, capacity, status, referenceCode, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        nameAr:
+          type: ["string", "null"]
+        location:
+          type: string
+        locationAr:
+          type: ["string", "null"]
+        capacity:
+          type: integer
+        floor:
+          type: ["string", "null"]
+        building:
+          type: ["string", "null"]
+        referenceCode:
+          type: string
+        status:
+          type: string
+          enum: [available, maintenance, disabled]
+        equipment:
+          type: array
+          items:
+            type: string
+        providesHospitality:
+          type: boolean
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/HallImage"
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+        qrCode:
+          type: ["string", "null"]
+        averageRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+        totalBookings:
+          type: integer
+        createdAt:
+          type: string
+
+    HallImage:
+      type: object
+      required: [id, url]
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+
+    HallInput:
+      type: object
+      required: [name, location, capacity]
+      properties:
+        name:
+          type: string
+        nameAr:
+          type: string
+        location:
+          type: string
+        locationAr:
+          type: string
+        capacity:
+          type: integer
+        floor:
+          type: string
+        building:
+          type: string
+        referenceCode:
+          type: string
+        status:
+          type: string
+          enum: [available, maintenance, disabled]
+        equipment:
+          type: array
+          items:
+            type: string
+        providesHospitality:
+          type: boolean
+        images:
+          type: array
+          items:
+            type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    HallUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        nameAr:
+          type: string
+        location:
+          type: string
+        locationAr:
+          type: string
+        capacity:
+          type: integer
+        floor:
+          type: string
+        building:
+          type: string
+        referenceCode:
+          type: string
+        status:
+          type: string
+          enum: [available, maintenance, disabled]
+        equipment:
+          type: array
+          items:
+            type: string
+        providesHospitality:
+          type: boolean
+        images:
+          type: array
+          items:
+            type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    AvailabilitySlot:
+      type: object
+      required: [date, isAvailable]
+      properties:
+        date:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        isAvailable:
+          type: boolean
+        bookingId:
+          type: ["integer", "null"]
+
+    # --- Bookings ---
+    Booking:
+      type: object
+      required: [id, hallId, userId, status, startDate, endDate, startTime, endTime, activityType, reason, createdAt]
+      properties:
+        id:
+          type: integer
+        hallId:
+          type: integer
+        hall:
+          $ref: "#/components/schemas/Hall"
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        status:
+          type: string
+          enum: [pending, approved, partially_approved, rejected, cancelled, emergency_cancelled, completed]
+        startDate:
+          type: string
+        endDate:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        activityType:
+          type: string
+        reason:
+          type: string
+        notes:
+          type: ["string", "null"]
+        needsCatering:
+          type: boolean
+        needsMeals:
+          type: boolean
+        cateringApproved:
+          type: ["boolean", "null"]
+        mealsApproved:
+          type: ["boolean", "null"]
+        coordinatorName:
+          type: ["string", "null"]
+        coordinatorPhone:
+          type: ["string", "null"]
+        isRecurring:
+          type: boolean
+        recurringWeeks:
+          type: ["integer", "null"]
+        rejectionReason:
+          type: ["string", "null"]
+        cancellationReason:
+          type: ["string", "null"]
+        approvedBy:
+          type: ["integer", "null"]
+        approverNote:
+          type: ["string", "null"]
+        manualDepartmentName:
+          type: ["string", "null"]
+        review:
+          $ref: "#/components/schemas/Review"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    BookingInput:
+      type: object
+      required: [hallId, startDate, endDate, startTime, endTime, activityType, reason]
+      properties:
+        hallId:
+          type: integer
+        startDate:
+          type: string
+        endDate:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        activityType:
+          type: string
+        reason:
+          type: string
+        notes:
+          type: string
+        needsCatering:
+          type: boolean
+        needsMeals:
+          type: boolean
+        coordinatorName:
+          type: string
+        coordinatorPhone:
+          type: string
+        isRecurring:
+          type: boolean
+        recurringWeeks:
+          type: integer
+        manualDepartmentName:
+          type: string
+
+    BookingUpdate:
+      type: object
+      properties:
+        startDate:
+          type: string
+        endDate:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        activityType:
+          type: string
+        reason:
+          type: string
+        notes:
+          type: string
+        needsCatering:
+          type: boolean
+        needsMeals:
+          type: boolean
+        coordinatorName:
+          type: string
+        coordinatorPhone:
+          type: string
+
+    BookingApprovalInput:
+      type: object
+      required: [cateringApproved, mealsApproved]
+      properties:
+        cateringApproved:
+          type: boolean
+        mealsApproved:
+          type: boolean
+        approverNote:
+          type: string
+
+    BookingRejectionInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    BookingCancellationInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    EmergencyCancelInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    BookingStatusChangeInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [completed, cancelled, emergency_cancelled, approved]
+        reason:
+          type: string
+
+    WaitlistEntry:
+      type: object
+      required: [id, bookingId, userId, createdAt]
+      properties:
+        id:
+          type: integer
+        bookingId:
+          type: integer
+        userId:
+          type: integer
+        createdAt:
+          type: string
+
+    # --- Reviews ---
+    Review:
+      type: object
+      required: [id, bookingId, userId, hallId, createdAt]
+      properties:
+        id:
+          type: integer
+        bookingId:
+          type: integer
+        userId:
+          type: integer
+        hallId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        cleanlinessRating:
+          type: ["integer", "null"]
+        equipmentRating:
+          type: ["integer", "null"]
+        cateringRating:
+          type: ["integer", "null"]
+        overallRating:
+          type: ["number", "null"]
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ReviewInput:
+      type: object
+      properties:
+        cleanlinessRating:
+          type: integer
+        equipmentRating:
+          type: integer
+        cateringRating:
+          type: integer
+        comment:
+          type: string
+
+    # --- Maintenance ---
+    MaintenanceNote:
+      type: object
+      required: [id, hallId, category, priority, status, description, createdAt]
+      properties:
+        id:
+          type: integer
+        hallId:
+          type: integer
+        category:
+          type: string
+          enum: [electrical, plumbing, hvac, furniture, technology, cleaning, structural, other]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        status:
+          type: string
+          enum: [pending, in_progress, resolved]
+        description:
+          type: string
+        scheduledDate:
+          type: ["string", "null"]
+        resolvedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    MaintenanceNoteInput:
+      type: object
+      required: [hallId, category, priority, description]
+      properties:
+        hallId:
+          type: integer
+        category:
+          type: string
+          enum: [electrical, plumbing, hvac, furniture, technology, cleaning, structural, other]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        description:
+          type: string
+        scheduledDate:
+          type: ["string", "null"]
+
+    MaintenanceNoteUpdate:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [electrical, plumbing, hvac, furniture, technology, cleaning, structural, other]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        status:
+          type: string
+          enum: [pending, in_progress, resolved]
+        description:
+          type: string
+        scheduledDate:
+          type: ["string", "null"]
+
+    # --- Notifications ---
+    Notification:
+      type: object
+      required: [id, userId, title, message, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+        titleAr:
+          type: ["string", "null"]
+        message:
+          type: string
+        messageAr:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [booking_approved, booking_rejected, booking_cancelled, booking_pending, system, general]
+        relatedBookingId:
+          type: ["integer", "null"]
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+
+    NotificationInput:
+      type: object
+      required: [title, message]
+      properties:
+        title:
+          type: string
+        titleAr:
+          type: string
+        message:
+          type: string
+        messageAr:
+          type: string
+        targetRole:
+          type: string
+          enum: [admin, relations_manager, requesting_department, all]
+        targetUserId:
+          type: integer
+
+    # --- Dashboard ---
+    DashboardStats:
+      type: object
+      required: [totalBookings, pendingBookings, approvedBookings, rejectedBookings, totalHalls, availableHalls, totalUsers]
+      properties:
+        totalBookings:
+          type: integer
+        pendingBookings:
+          type: integer
+        approvedBookings:
+          type: integer
+        rejectedBookings:
+          type: integer
+        cancelledBookings:
+          type: integer
+        completedBookings:
+          type: integer
+        totalHalls:
+          type: integer
+        availableHalls:
+          type: integer
+        maintenanceHalls:
+          type: integer
+        totalUsers:
+          type: integer
+        avgResponseHours:
+          type: ["number", "null"]
+
+    HallUsageStat:
+      type: object
+      required: [hallId, hallName, bookingCount, utilizationRate]
+      properties:
+        hallId:
+          type: integer
+        hallName:
+          type: string
+        bookingCount:
+          type: integer
+        utilizationRate:
+          type: number
+
+    DepartmentStat:
+      type: object
+      required: [userId, departmentName, bookingCount]
+      properties:
+        userId:
+          type: integer
+        departmentName:
+          type: string
+        bookingCount:
+          type: integer
+
+    ActivityStat:
+      type: object
+      required: [activityType, count]
+      properties:
+        activityType:
+          type: string
+        count:
+          type: integer
+
+    HallUtilizationStat:
+      type: object
+      required: [hallId, hallName, utilizationRate, totalDays, bookedDays]
+      properties:
+        hallId:
+          type: integer
+        hallName:
+          type: string
+        utilizationRate:
+          type: number
+        totalDays:
+          type: integer
+        bookedDays:
+          type: integer
+
+    PendingRequestStats:
+      type: object
+      required: [pendingCount, avgWaitHours, overdueCount]
+      properties:
+        pendingCount:
+          type: integer
+        avgWaitHours:
+          type: ["number", "null"]
+        overdueCount:
+          type: integer
+
+    # --- Settings ---
+    PlatformSettings:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
+        companyName:
+          type: string
+        companyNameAr:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        footerText:
+          type: ["string", "null"]
+        footerTextAr:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        defaultLanguage:
+          type: string
+          enum: [ar, en]
+        workingHoursStart:
+          type: string
+        workingHoursEnd:
+          type: string
+        passwordMinLength:
+          type: integer
+        passwordRequireSpecial:
+          type: boolean
+        passwordExpiryDays:
+          type: ["integer", "null"]
+        overdueRequestHours:
+          type: integer
+        twoFactorEnabled:
+          type: boolean
+
+    PlatformSettingsUpdate:
+      type: object
+      properties:
+        companyName:
+          type: string
+        companyNameAr:
+          type: string
+        logoUrl:
+          type: string
+        footerText:
+          type: string
+        footerTextAr:
+          type: string
+        primaryColor:
+          type: string
+        defaultLanguage:
+          type: string
+          enum: [ar, en]
+        workingHoursStart:
+          type: string
+        workingHoursEnd:
+          type: string
+        passwordMinLength:
+          type: integer
+        passwordRequireSpecial:
+          type: boolean
+        passwordExpiryDays:
+          type: integer
+        overdueRequestHours:
+          type: integer
+        twoFactorEnabled:
+          type: boolean
+
+    Holiday:
+      type: object
+      required: [id, date, name]
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        name:
+          type: string
+        nameAr:
+          type: ["string", "null"]
+
+    HolidayInput:
+      type: object
+      required: [date, name]
+      properties:
+        date:
+          type: string
+        name:
+          type: string
+        nameAr:
+          type: string
+
+    FactoryResetResult:
+      type: object
+      required: [message, deletedCounts]
+      properties:
+        message:
+          type: string
+        deletedCounts:
+          type: object
+          additionalProperties:
+            type: integer
+
+    # --- Audit ---
+    AuditLog:
+      type: object
+      required: [id, userId, action, entityType, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: ["integer", "null"]
+        details:
+          type: ["string", "null"]
+        ipAddress:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AuditLogPage:
+      type: object
+      required: [data, total, page, limit]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    ActiveSession:
+      type: object
+      required: [userId, username, role, lastLogin]
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        role:
+          type: string
+        departmentName:
+          type: ["string", "null"]
+        lastLogin:
+          type: string
+        ipAddress:
+          type: ["string", "null"]
+        isOnline:
+          type: boolean
+
+    # --- Public ---
+    PublicHall:
+      type: object
+      required: [id, name, location, capacity, status]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        nameAr:
+          type: ["string", "null"]
+        location:
+          type: string
+        locationAr:
+          type: ["string", "null"]
+        capacity:
+          type: integer
+        status:
+          type: string
+          enum: [available, maintenance, disabled]
+        equipment:
+          type: array
+          items:
+            type: string
+        providesHospitality:
+          type: boolean
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/HallImage"
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+        isCurrentlyOccupied:
+          type: boolean
+        currentBooking:
+          type: ["object", "null"]
