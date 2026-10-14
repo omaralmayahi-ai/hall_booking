@@ -52,6 +52,24 @@ export interface PlatformOptions {
     showActivity: boolean;
     refreshSeconds: number;
     tickerAr: string;
+    theme: "midnight" | "brand" | "light";
+    subtitleAr: string;
+    showStats: boolean;
+    showTimeline: boolean;
+    showNext: boolean;
+    hallsPerPage: number;
+    pageSeconds: number;
+    tickerEnabled: boolean;
+    tickerItems: string[];
+    tickerMode: "scroll" | "static";
+    tickerSpeed: "slow" | "normal" | "fast";
+    tickerStaticSeconds: number;
+    tickerShowLogo: boolean;
+    tickerLabel: string;
+    tickerTextColor: string;
+    tickerBgColor: string;
+    tickerLabelColor: string;
+    tickerSize: "md" | "lg" | "xl";
   };
   print: {
     headerLine1: string;

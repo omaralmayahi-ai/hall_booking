@@ -170,7 +170,7 @@ export const UpdateUserParams = zod.object({
   "id": zod.coerce.number()
 })
 
-export const updateUserBodyPasswordMin = 8;
+export const updateUserBodyPasswordMin = 6;
 
 
 

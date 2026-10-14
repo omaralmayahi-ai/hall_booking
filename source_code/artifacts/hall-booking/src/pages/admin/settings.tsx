@@ -28,6 +28,8 @@ import type { PlatformOptions } from "@/lib/options";
 import { WEEKDAYS_AR } from "@/lib/options";
 import { makeIconSet, readFileAsDataUrl, resizeImage } from "@/lib/image";
 import { cn } from "@/lib/utils";
+import { ScreenSettings } from "./screen-settings";
+import { CheckRow, Field, NumberField, Section } from "./settings-ui";
 
 interface BaseSettings {
   companyName: string;
@@ -51,61 +53,13 @@ const TABS = [
   { key: "booking", label: "قواعد الحجز", icon: CalendarCog },
   { key: "notifications", label: "التذكير والصيانة", icon: Bell },
   { key: "display", label: "العرض والطباعة", icon: Printer },
+  { key: "screens", label: "شاشات العرض", icon: MonitorPlay },
   { key: "security", label: "الأمان", icon: ShieldCheck },
   { key: "data", label: "البيانات", icon: Database },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
 /* ---------------- small building blocks ---------------- */
-
-function Section({ icon: Icon, title, description, children }: { icon: typeof Bell; title: string; description?: string; children: ReactNode }) {
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Icon className="w-4 h-4" /></span>
-          {title}
-        </CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
-    </Card>
-  );
-}
-
-function Field({ label, hint, children, className }: { label: string; hint?: string; children: ReactNode; className?: string }) {
-  return (
-    <div className={cn("space-y-1.5", className)}>
-      <Label>{label}</Label>
-      {children}
-      {hint && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
-    </div>
-  );
-}
-
-/** Checkbox row (the platform deliberately avoids toggle switches). */
-function CheckRow({ checked, onChange, title, description }: { checked: boolean; onChange: (v: boolean) => void; title: string; description?: string }) {
-  return (
-    <label className={cn("flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors", checked ? "border-primary/40 bg-primary/[0.04]" : "hover:bg-muted/40")}>
-      <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-0.5" />
-      <span className="min-w-0">
-        <span className="text-sm font-medium block">{title}</span>
-        {description && <span className="text-xs text-muted-foreground block mt-0.5 leading-relaxed">{description}</span>}
-      </span>
-    </label>
-  );
-}
-
-function NumberField({ label, hint, value, onChange, min, max, suffix }: { label: string; hint?: string; value: number; onChange: (v: number) => void; min?: number; max?: number; suffix?: string }) {
-  return (
-    <Field label={label} hint={hint}>
-      <div className="relative">
-        <Input type="number" min={min} max={max} value={Number.isFinite(value) ? value : ""} onChange={(e) => onChange(Number(e.target.value))} dir="ltr" className="text-right pl-16" />
-        {suffix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{suffix}</span>}
-      </div>
-    </Field>
-  );
-}
 
 function ListEditor({ items, onChange, placeholder }: { items: string[]; onChange: (v: string[]) => void; placeholder: string }) {
   const [draft, setDraft] = useState("");
@@ -296,7 +250,6 @@ export default function AdminSettings() {
         icon={Settings2}
         title="إعدادات النظام"
         description="الهوية البصرية والمظهر وقواعد الحجز والتذكير والطباعة والأمان"
-        actions={<Button onClick={save} disabled={!dirty || saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}حفظ الإعدادات</Button>}
       />
 
       <div className="grid lg:grid-cols-[15rem_minmax(0,1fr)] gap-5 items-start">
@@ -522,19 +475,8 @@ export default function AdminSettings() {
 
             {tab === "display" && (
               <>
-                <Section icon={MonitorPlay} title="شاشات العرض" description="شاشة لكل قاعة توضع عند بابها، وشاشة عامة في الاستقبال">
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => window.open("/display", "_blank")}><ExternalLink className="w-3.5 h-3.5" />فتح شاشة الاستقبال</Button>
-                    <p className="text-xs text-muted-foreground self-center">شاشة كل قاعة متاحة من صفحة «إدارة القاعات».</p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <CheckRow checked={o!.display.showDepartment} onChange={(v) => setOpt("display", "showDepartment", v)} title="إظهار اسم الجهة على الشاشات" />
-                    <CheckRow checked={o!.display.showActivity} onChange={(v) => setOpt("display", "showActivity", v)} title="إظهار نوع النشاط على الشاشات" />
-                  </div>
-                  <div className="grid md:grid-cols-[12rem_1fr] gap-4">
-                    <NumberField label="التحديث كل" value={o!.display.refreshSeconds} onChange={(v) => setOpt("display", "refreshSeconds", v)} min={15} max={600} suffix="ثانية" />
-                    <Field label="شريط إعلانات أسفل الشاشة"><Input value={o!.display.tickerAr} onChange={(e) => setOpt("display", "tickerAr", e.target.value)} placeholder="اختياري" /></Field>
-                  </div>
+                <Section icon={MonitorPlay} title="شاشات العرض" description="انتقلت إعدادات شاشات العرض وشريط الأخبار إلى تبويب مستقل">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setTab("screens")}><MonitorPlay className="w-3.5 h-3.5" />فتح إعدادات شاشات العرض</Button>
                 </Section>
                 <Section icon={Printer} title="ترويسة المطبوعات" description="تظهر أعلى إشعار الحجز والتقارير المطبوعة (يمين الصفحة)">
                   <div className="grid md:grid-cols-3 gap-4">
@@ -548,6 +490,8 @@ export default function AdminSettings() {
                 </Section>
               </>
             )}
+
+            {tab === "screens" && <ScreenSettings d={o!.display} set={(k, v) => setOpt("display", k, v)} logo={b!.logoUrl || `/icons/icon-192.png?v=${opts?.icon.version ?? ""}`} />}
 
             {tab === "security" && (
               <Section icon={ShieldCheck} title="سياسة كلمات المرور" description="الحد الأدنى 6 رموز، ويختار المستخدم تركيبتها (أرقام أو حروف أو رموز)">
@@ -567,9 +511,9 @@ export default function AdminSettings() {
       {dirty && (
         <div className="fixed bottom-4 inset-x-4 lg:right-[calc(17rem+1.5rem)] lg:left-6 z-30 flex justify-center pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-3 rounded-xl border bg-background/95 backdrop-blur shadow-lg px-4 py-2.5">
-            <span className="text-sm text-muted-foreground">لديك تغييرات غير محفوظة</span>
-            <Button size="sm" variant="ghost" onClick={() => { if (base) setB(base); if (opts) { const { icon: _i, ...r } = opts; setO(r); } }}>تراجع</Button>
-            <Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}حفظ</Button>
+            <span className="text-sm text-muted-foreground flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" />لديك تغييرات غير محفوظة</span>
+            <Button size="sm" variant="ghost" onClick={() => { if (base) setB(base); if (opts) { const { icon: _i, ...r } = opts; setO(r); } }}><RotateCcw className="w-4 h-4" />تراجع عن التغييرات</Button>
+            <Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}حفظ التغييرات</Button>
           </div>
         </div>
       )}

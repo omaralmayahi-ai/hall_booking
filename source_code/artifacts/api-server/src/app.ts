@@ -1,3 +1,4 @@
+import { friendlyValidationError } from "./lib/validation-message";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import path from "node:path";
 import fs from "node:fs";
@@ -53,6 +54,18 @@ if (allowedOrigins.length) {
 app.use("/api", apiLimiter, express.json({ limit: "10mb" }), express.urlencoded({ extended: false, limit: "1mb" }));
 app.use("/api", (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
+  next();
+});
+// Validation errors leave the API as one readable Arabic sentence instead of raw zod JSON.
+app.use("/api", (_req, res, next) => {
+  const json = res.json.bind(res);
+  res.json = (body: any) => {
+    if (res.statusCode === 400 && body && typeof body === "object") {
+      const friendly = friendlyValidationError(body.error);
+      if (friendly) body = { ...body, error: friendly };
+    }
+    return json(body);
+  };
   next();
 });
 app.use("/api", router);

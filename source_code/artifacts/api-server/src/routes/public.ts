@@ -148,6 +148,11 @@ async function hallDisplay(hall: typeof hallsTable.$inferSelect) {
   };
 }
 
+async function workingHours() {
+  const [row] = await db.select({ start: platformSettingsTable.workingHoursStart, end: platformSettingsTable.workingHoursEnd }).from(platformSettingsTable).limit(1);
+  return { start: hhmm(row?.start ?? "08:00"), end: hhmm(row?.end ?? "15:00") };
+}
+
 /** Door / lobby screens: one hall, or every hall when id is omitted. */
 router.get("/public/display", async (_req, res): Promise<void> => {
   const halls = await db.select().from(hallsTable).orderBy(hallsTable.id);
@@ -157,7 +162,9 @@ router.get("/public/display", async (_req, res): Promise<void> => {
     date: localDate(),
     time: localTime(),
     refreshSeconds: opts.display.refreshSeconds,
-    ticker: opts.display.tickerAr,
+    ticker: opts.display.tickerItems.join("   •   "),
+    display: opts.display,
+    workingHours: await workingHours(),
     halls: await Promise.all(halls.filter((h) => h.status !== "disabled").map(hallDisplay)),
   });
 });
@@ -175,7 +182,9 @@ router.get("/public/display/:id", async (req, res): Promise<void> => {
     date: localDate(),
     time: localTime(),
     refreshSeconds: opts.display.refreshSeconds,
-    ticker: opts.display.tickerAr,
+    ticker: opts.display.tickerItems.join("   •   "),
+    display: opts.display,
+    workingHours: await workingHours(),
     hall: await hallDisplay(hall),
   });
 });

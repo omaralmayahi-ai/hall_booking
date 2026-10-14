@@ -57,7 +57,26 @@ export interface PlatformOptions {
     showDepartment: boolean;
     showActivity: boolean;
     refreshSeconds: number;
+    /** legacy single ticker line (kept for old data; merged into tickerItems) */
     tickerAr: string;
+    theme: "midnight" | "brand" | "light";
+    subtitleAr: string;
+    showStats: boolean;
+    showTimeline: boolean;
+    showNext: boolean;
+    hallsPerPage: number;
+    pageSeconds: number;
+    tickerEnabled: boolean;
+    tickerItems: string[];
+    tickerMode: "scroll" | "static";
+    tickerSpeed: "slow" | "normal" | "fast";
+    tickerStaticSeconds: number;
+    tickerShowLogo: boolean;
+    tickerLabel: string;
+    tickerTextColor: string;
+    tickerBgColor: string;
+    tickerLabelColor: string;
+    tickerSize: "md" | "lg" | "xl";
   };
   print: {
     headerLine1: string;
@@ -122,6 +141,24 @@ export const DEFAULT_OPTIONS: PlatformOptions = {
     showActivity: true,
     refreshSeconds: 60,
     tickerAr: "",
+    theme: "midnight",
+    subtitleAr: "حالة القاعات اليوم",
+    showStats: true,
+    showTimeline: true,
+    showNext: true,
+    hallsPerPage: 0,
+    pageSeconds: 15,
+    tickerEnabled: true,
+    tickerItems: [],
+    tickerMode: "scroll",
+    tickerSpeed: "normal",
+    tickerStaticSeconds: 6,
+    tickerShowLogo: true,
+    tickerLabel: "إعلانات",
+    tickerTextColor: "#ffffff",
+    tickerBgColor: "#0b3a6e",
+    tickerLabelColor: "#c8102e",
+    tickerSize: "lg",
   },
   print: {
     headerLine1: "",
@@ -213,6 +250,27 @@ export function sanitizeOptions(input: unknown): Partial<Record<Section, Record<
   put("display", "showActivity", bool(d.showActivity));
   put("display", "refreshSeconds", num(d.refreshSeconds, 15, 600));
   put("display", "tickerAr", str(d.tickerAr, 300));
+  put("display", "theme", oneOf(d.theme, ["midnight", "brand", "light"] as const));
+  put("display", "subtitleAr", str(d.subtitleAr, 120));
+  put("display", "showStats", bool(d.showStats));
+  put("display", "showTimeline", bool(d.showTimeline));
+  put("display", "showNext", bool(d.showNext));
+  put("display", "hallsPerPage", num(d.hallsPerPage, 0, 24));
+  put("display", "pageSeconds", num(d.pageSeconds, 5, 120));
+  put("display", "tickerEnabled", bool(d.tickerEnabled));
+  if (Array.isArray(d.tickerItems)) {
+    put("display", "tickerItems", d.tickerItems.filter((x): x is string => typeof x === "string").map((x) => x.trim().slice(0, 300)).filter(Boolean).slice(0, 20));
+  }
+  put("display", "tickerMode", oneOf(d.tickerMode, ["scroll", "static"] as const));
+  put("display", "tickerSpeed", oneOf(d.tickerSpeed, ["slow", "normal", "fast"] as const));
+  put("display", "tickerStaticSeconds", num(d.tickerStaticSeconds, 3, 60));
+  put("display", "tickerShowLogo", bool(d.tickerShowLogo));
+  put("display", "tickerLabel", str(d.tickerLabel, 40));
+  for (const k of ["tickerTextColor", "tickerBgColor", "tickerLabelColor"]) {
+    const v = typeof d[k] === "string" ? (d[k] as string).trim().toLowerCase() : "";
+    if (/^#[0-9a-f]{6}$/.test(v)) put("display", k, v);
+  }
+  put("display", "tickerSize", oneOf(d.tickerSize, ["md", "lg", "xl"] as const));
 
   const p = isObj(input.print) ? input.print : {};
   for (const k of ["headerLine1", "headerLine2", "headerLine3", "signatureTitle"]) put("print", k, str(p[k], 120));
@@ -240,6 +298,9 @@ export async function getOptions(): Promise<PlatformOptions> {
     .from(platformSettingsTable)
     .limit(1);
   const value = mergeOptions(row?.options);
+  // v2.5: the single legacy ticker line becomes the first ticker item.
+  const storedDisplay = (row?.options as { display?: Record<string, unknown> } | undefined)?.display ?? {};
+  if (!Array.isArray(storedDisplay.tickerItems) && value.display.tickerAr) value.display.tickerItems = [value.display.tickerAr];
   // The platform name historically lives in platform_settings.company_name(_ar).
   const stored = (row?.options as { identity?: Record<string, unknown> } | undefined)?.identity ?? {};
   if (!stored.systemNameAr && row?.companyNameAr) value.identity.systemNameAr = row.companyNameAr;
