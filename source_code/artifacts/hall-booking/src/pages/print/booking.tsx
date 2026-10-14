@@ -66,15 +66,9 @@ export default function PrintBooking() {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-8 pt-10 text-sm">
-            <div className="text-center space-y-10">
-              <p className="font-semibold">الجهة الطالبة</p>
-              <p className="border-t border-dashed border-slate-400 pt-1 text-slate-500 text-xs">التوقيع</p>
-            </div>
-            <div className="text-center space-y-10">
-              <p className="font-semibold">{print?.signatureTitle?.trim() || "مدير العلاقات"}</p>
-              <p className="border-t border-dashed border-slate-400 pt-1 text-slate-500 text-xs">التوقيع والختم</p>
-            </div>
+          {/* Signatory title only, on the left side of the page */}
+          <div className="flex justify-end pt-12 text-sm">
+            <p className="font-bold text-center w-1/2">{print?.signatureTitle?.trim() || "مدير العلاقات"}</p>
           </div>
         </div>
       )}
