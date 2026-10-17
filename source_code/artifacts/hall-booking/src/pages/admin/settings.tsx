@@ -538,12 +538,12 @@ function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; on
   const audit = useFactoryResetAuditLog();
   const reviews = useFactoryResetReviews();
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [confirmText, setConfirmText] = useState("");
+  const [armed, setArmed] = useState(false); // full reset: second button press confirms
   const [withBackup, setWithBackup] = useState(offerBackup);
   const [phase, setPhase] = useState<"idle" | "backup" | "run">("idle");
   const openAction = (key: string) => {
     setActiveKey(key);
-    setConfirmText("");
+    setArmed(false);
     setWithBackup(offerBackup);
   };
 
@@ -577,7 +577,7 @@ function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; on
       toast({ title: r?.message || "تم التنفيذ" });
       qc.invalidateQueries();
       setActiveKey(null);
-      setConfirmText("");
+      setArmed(false);
     } catch {
       toast({ variant: "destructive", title: "فشل التنفيذ" });
     } finally {
@@ -613,7 +613,7 @@ function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; on
           ))}
         </CardContent>
       </Card>
-      <AlertDialog open={!!active} onOpenChange={(v) => { if (!v && phase === "idle") { setActiveKey(null); setConfirmText(""); } }}>
+      <AlertDialog open={!!active} onOpenChange={(v) => { if (!v && phase === "idle") { setActiveKey(null); setArmed(false); } }}>
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-red-700 flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{active?.title}</AlertDialogTitle>
@@ -625,17 +625,17 @@ function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; on
             title="أخذ نسخة احتياطية قبل التنفيذ"
             description={withBackup ? "موصى به — تستطيع استعادة البيانات منها لاحقاً من تبويب «النسخ الاحتياطي»" : "لن تُؤخذ نسخة — لن تتمكن من استعادة ما سيُحذف"}
           />
-          {active?.typed && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">للتأكيد اكتب <b className="text-red-600">حذف الكل</b></Label>
-              <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="حذف الكل" autoFocus />
+          {active?.typed && armed && (
+            <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-500/10 p-3 text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>تأكيد أخير: ستُمحى كل البيانات والإعدادات. اضغط «تأكيد المحو النهائي» للمتابعة، أو «إلغاء» للتراجع.</span>
             </div>
           )}
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel disabled={phase !== "idle"}>إلغاء</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={phase !== "idle" || (active?.typed && confirmText.trim() !== "حذف الكل")} onClick={(e) => { e.preventDefault(); run(); }}>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={phase !== "idle"} onClick={(e) => { e.preventDefault(); if (active?.typed && !armed) { setArmed(true); return; } run(); }}>
               {phase !== "idle" && <Loader2 className="w-4 h-4 animate-spin" />}
-              {phase === "backup" ? "جارٍ أخذ النسخة..." : phase === "run" ? "جاري التنفيذ..." : withBackup ? "نسخ احتياطي ثم تنفيذ" : "تنفيذ بدون نسخة"}
+              {phase === "backup" ? "جارٍ أخذ النسخة..." : phase === "run" ? "جاري التنفيذ..." : active?.typed && !armed ? "متابعة" : active?.typed ? "تأكيد المحو النهائي" : withBackup ? "نسخ احتياطي ثم تنفيذ" : "تنفيذ بدون نسخة"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
