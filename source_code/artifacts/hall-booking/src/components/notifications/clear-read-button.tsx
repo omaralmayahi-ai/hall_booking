@@ -39,7 +39,7 @@ export function ClearReadButton({ readCount, className }: { readCount: number; c
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader>
             <AlertDialogTitle>حذف {readCount} إشعار مقروء؟</AlertDialogTitle>
-            <AlertDialogDescription>تبقى الإشعارات غير المقروءة كما هي. لا يمكن استرجاع ما يُحذف.</AlertDialogDescription>
+            <AlertDialogDescription>تُحذف من صندوقك أنت فقط، ولا تتأثر عند المرسل أو بقية الحسابات. تبقى الإشعارات غير المقروءة كما هي.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel disabled={busy}>إلغاء</AlertDialogCancel>

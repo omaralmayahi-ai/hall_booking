@@ -152,6 +152,15 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS bookings_archived_idx ON public.bookings (archived_at);
     `,
   },
+  {
+    id: "008_notification_soft_delete",
+    description: "Deleting a notification hides it for that account only (recipient inbox / sender history)",
+    sql: `
+      ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS deleted_at timestamp;
+      ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS sender_hidden_at timestamp;
+      CREATE INDEX IF NOT EXISTS notifications_inbox_idx ON public.notifications (user_id) WHERE deleted_at IS NULL;
+    `,
+  },
 ];
 
 async function tableExists(name: string): Promise<boolean> {

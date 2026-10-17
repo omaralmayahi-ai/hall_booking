@@ -25,6 +25,10 @@ export const notificationsTable = pgTable("notifications", {
   /** Set on notifications sent manually (broadcast); groups one send operation. */
   batchId: text("batch_id"),
   sentBy: integer("sent_by"),
+  /** The recipient removed it from their own inbox (other accounts are unaffected). */
+  deletedAt: timestamp("deleted_at"),
+  /** The sender removed this send from their own "sent" history. */
+  senderHiddenAt: timestamp("sender_hidden_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

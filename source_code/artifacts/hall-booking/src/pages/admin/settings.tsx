@@ -548,7 +548,7 @@ function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; on
   };
 
   const actions = [
-    { key: "notifications", icon: Bell, title: "حذف الإشعارات", description: "حذف جميع الإشعارات لكل المستخدمين", mutation: notifications },
+    { key: "notifications", icon: Bell, title: "حذف الإشعارات", description: "حذف جميع الإشعارات نهائياً من كل الحسابات — الواردة وسجل المرسلة", mutation: notifications },
     { key: "reviews", icon: Star, title: "حذف التقييمات", description: "حذف جميع تقييمات القاعات", mutation: reviews },
     { key: "audit-log", icon: History, title: "حذف سجل الأحداث", description: "حذف سجل العمليات بالكامل", mutation: audit },
     { key: "completed-bookings", icon: CheckCircle2, title: "حذف الحجوزات المكتملة", description: "الحجوزات المنتهية فقط وتقييماتها", mutation: completed },

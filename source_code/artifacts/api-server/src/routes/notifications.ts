@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db, notificationsTable, usersTable } from "@workspace/db";
 import {
@@ -19,7 +19,7 @@ function serializeNotification(n: typeof notificationsTable.$inferSelect) {
 
 router.get("/notifications", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const params = ListNotificationsQueryParams.safeParse(req.query);
-  const conditions = [eq(notificationsTable.userId, req.user!.id)];
+  const conditions = [eq(notificationsTable.userId, req.user!.id), isNull(notificationsTable.deletedAt)];
   if (params.success && params.data.unread) {
     conditions.push(eq(notificationsTable.isRead, false));
   }
@@ -80,16 +80,17 @@ router.get("/notifications/sent", requireAuth, requireRole("admin", "relations_m
   const rows = await db
     .select({
       batchId: notificationsTable.batchId,
-      title: sql<string>`max(${notificationsTable.titleAr})`,
-      message: sql<string>`max(${notificationsTable.messageAr})`,
+      title: sql<string>`max(COALESCE(${notificationsTable.titleAr}, ${notificationsTable.title}))`,
+      message: sql<string>`max(COALESCE(${notificationsTable.messageAr}, ${notificationsTable.message}))`,
       type: sql<string>`max(${notificationsTable.type}::text)`,
       sentBy: sql<number>`max(${notificationsTable.sentBy})`,
       createdAt: sql<string>`min(${notificationsTable.createdAt})`,
       recipients: sql<number>`count(*)::int`,
       read: sql<number>`count(*) filter (where ${notificationsTable.isRead})::int`,
+      removed: sql<number>`count(*) filter (where ${notificationsTable.deletedAt} is not null)::int`,
     })
     .from(notificationsTable)
-    .where(isNotNull(notificationsTable.batchId))
+    .where(and(isNotNull(notificationsTable.batchId), eq(notificationsTable.sentBy, req.user!.id), isNull(notificationsTable.senderHiddenAt)))
     .groupBy(notificationsTable.batchId)
     .orderBy(sql`min(${notificationsTable.createdAt}) desc`)
     .limit(50);
@@ -102,6 +103,18 @@ router.get("/notifications/sent", requireAuth, requireRole("admin", "relations_m
       return { ...r, createdAt: at.toISOString(), sender: s?.departmentName || s?.username || "" };
     }),
   );
+});
+
+/** Remove one send from the sender's own history (recipients keep their notifications). */
+router.post("/notifications/sent/:batchId/hide", requireAuth, requireRole("admin", "relations_manager"), async (req: AuthenticatedRequest, res): Promise<void> => {
+  const rows = await db.update(notificationsTable).set({ senderHiddenAt: new Date() }).where(
+    and(eq(notificationsTable.batchId, String(req.params.batchId)), eq(notificationsTable.sentBy, req.user!.id))
+  ).returning({ id: notificationsTable.id });
+  if (!rows.length) {
+    res.status(404).json({ error: "غير موجود" });
+    return;
+  }
+  res.json({ hidden: true });
 });
 
 router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
@@ -121,14 +134,14 @@ router.patch("/notifications/:id/read", requireAuth, async (req: AuthenticatedRe
 });
 
 router.patch("/notifications/read-all", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.userId, req.user!.id));
+  await db.update(notificationsTable).set({ isRead: true }).where(and(eq(notificationsTable.userId, req.user!.id), isNull(notificationsTable.deletedAt)));
   res.json({ success: true });
 });
 
 /** Delete every notification the user has already read. */
 router.post("/notifications/clear-read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
-  const deleted = await db.delete(notificationsTable).where(
-    and(eq(notificationsTable.userId, req.user!.id), eq(notificationsTable.isRead, true))
+  const deleted = await db.update(notificationsTable).set({ deletedAt: new Date() }).where(
+    and(eq(notificationsTable.userId, req.user!.id), eq(notificationsTable.isRead, true), isNull(notificationsTable.deletedAt))
   ).returning({ id: notificationsTable.id });
   res.json({ deleted: deleted.length });
 });
@@ -139,8 +152,9 @@ router.delete("/notifications/:id", requireAuth, async (req: AuthenticatedReques
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [deleted] = await db.delete(notificationsTable).where(
-    and(eq(notificationsTable.id, params.data.id), eq(notificationsTable.userId, req.user!.id))
+  // Hidden for this account only — the sender's history and other recipients keep their copy.
+  const [deleted] = await db.update(notificationsTable).set({ deletedAt: new Date() }).where(
+    and(eq(notificationsTable.id, params.data.id), eq(notificationsTable.userId, req.user!.id), isNull(notificationsTable.deletedAt))
   ).returning();
   if (!deleted) {
     res.status(404).json({ error: "Not found" });

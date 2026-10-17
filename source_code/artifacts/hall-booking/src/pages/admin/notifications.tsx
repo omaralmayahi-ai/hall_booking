@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useListUsers } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Bell, BellRing, Building2, CalendarOff, CheckCheck, Clock, Info, Loader2, Megaphone, Search, Send, ShieldCheck, User, Users, Wrench, Sparkles,
+  Bell, BellRing, Building2, CalendarOff, CheckCheck, Clock, Info, Loader2, Megaphone, Search, Send, ShieldCheck, User, Users, Wrench, Sparkles, Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ interface SentBatch {
   createdAt: string;
   recipients: number;
   read: number;
+  removed: number;
 }
 
 const AUDIENCES: { value: Audience; label: string; hint: string; icon: typeof Users }[] = [
@@ -51,6 +52,15 @@ export default function AdminNotifications() {
   const { toast } = useToast();
   const { data: users } = useListUsers();
   const { data: sent, isLoading: sentLoading } = useApiQuery<SentBatch[]>("/notifications/sent");
+  const hideSent = async (batchId: string) => {
+    try {
+      await api("POST", `/notifications/sent/${encodeURIComponent(batchId)}/hide`);
+      qc.invalidateQueries({ queryKey: ["v2", "/notifications/sent"] });
+      toast({ title: "حُذف من سجل المرسلة", description: "يبقى الإشعار عند المستلمين" });
+    } catch (e) {
+      toast({ variant: "destructive", title: errorMessage(e, "تعذّر الحذف") });
+    }
+  };
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -209,7 +219,7 @@ export default function AdminNotifications() {
         <Card className="xl:sticky xl:top-4">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2"><CheckCheck className="w-4 h-4 text-emerald-600" />الإشعارات المرسلة</CardTitle>
-            <CardDescription>آخر 50 إشعاراً ونسبة قراءتها</CardDescription>
+            <CardDescription>آخر 50 إشعاراً أرسلتها ونسبة قراءتها. الحذف من هنا يزيلها من سجلك فقط، ولا يمسها عند المستلمين.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 max-h-[70svh] overflow-y-auto">
             {sentLoading ? (
@@ -226,12 +236,17 @@ export default function AdminNotifications() {
                   <div key={b.batchId} className="rounded-xl border p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-sm leading-snug">{b.title}</p>
-                      {b.type === "system" && <span className="text-[10px] rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 shrink-0">نظام</span>}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {b.type === "system" && <span className="text-[10px] rounded-full bg-sky-100 text-sky-700 px-2 py-0.5">نظام</span>}
+                        <button type="button" className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10" title="حذف من سجل المرسلة" aria-label="حذف من سجل المرسلة" onClick={() => hideSent(b.batchId)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{b.message}</p>
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px] text-muted-foreground">
-                        <span>قرأه {b.read} من {b.recipients}</span>
+                        <span>قرأه {b.read} من {b.recipients}{b.removed ? ` — حذفه ${b.removed} من صندوقه` : ""}</span>
                         <span className="tabular-nums font-semibold">{pct}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
