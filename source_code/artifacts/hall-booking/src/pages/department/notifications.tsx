@@ -1,5 +1,9 @@
+import { useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { PageHeader } from "@/components/layout/page-header";
+import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { bookingLinkFor, useFocusedNotification } from "@/components/notifications/use-focused-notification";
 import { ClearReadButton } from "@/components/notifications/clear-read-button";
 import { Bell as BellIcon } from "lucide-react";
 import { useListNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, useDeleteNotification, getListNotificationsQueryKey } from "@workspace/api-client-react";
@@ -21,6 +25,14 @@ export default function DepartmentNotifications() {
   const deleteNotif = useDeleteNotification();
 
   const unreadCount = notifications?.filter(n => !n.isRead).length ?? 0;
+  const { user } = useAuth();
+  const focusedId = useFocusedNotification(!!notifications?.length);
+  // Opening a notification from the bell marks it as read.
+  useEffect(() => {
+    const n = notifications?.find((x) => x.id === focusedId);
+    if (n && !n.isRead) void handleMarkOne(n.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedId, notifications?.length]);
 
   const handleMarkAll = async () => {
     try {
@@ -74,7 +86,8 @@ export default function DepartmentNotifications() {
               <div>
                 {notifications.map(n => (
                   <div key={n.id}
-                    className={`group flex gap-4 p-4 border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors ${!n.isRead ? "bg-primary/5/40" : ""}`}
+                    id={`notif-${n.id}`}
+                    className={`group flex gap-4 p-4 border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors scroll-mt-24 ${focusedId === n.id ? "bg-primary/[0.07] ring-2 ring-inset ring-primary/50" : !n.isRead ? "bg-primary/[0.04]" : ""}`}
                     onClick={() => !n.isRead && handleMarkOne(n.id)}
                   >
                     <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${n.isRead ? "bg-muted" : "bg-primary"}`} />
@@ -84,7 +97,12 @@ export default function DepartmentNotifications() {
                         {!n.isRead && <Badge className="bg-primary/10 text-primary hover:bg-primary/10 text-xs">جديد</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{n.messageAr || n.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{formatDateTime(n.createdAt)}</p>
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
+                        <p className="text-xs text-muted-foreground">{formatDateTime(n.createdAt)}</p>
+                        {bookingLinkFor(user?.role, n.relatedBookingId) && (
+                          <Link href={bookingLinkFor(user?.role, n.relatedBookingId)!} className="text-xs font-semibold text-primary hover:underline" onClick={(e) => e.stopPropagation()}>عرض الحجز</Link>
+                        )}
+                      </div>
                     </div>
                     <Button
                       variant="ghost"

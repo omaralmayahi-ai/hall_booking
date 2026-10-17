@@ -83,6 +83,7 @@ function NotificationsPopover() {
                   className={`block w-full text-right p-3 text-sm hover:bg-muted/50 transition-colors ${!n.isRead ? "bg-primary/5" : ""}`}
                   onClick={async () => {
                     if (!n.isRead) { await markRead.mutateAsync({ id: n.id }); refresh(); }
+                    if (allPath) { setOpen(false); setLocation(`${allPath}?n=${n.id}`); }
                   }}
                 >
                   <div className="flex items-start gap-2">

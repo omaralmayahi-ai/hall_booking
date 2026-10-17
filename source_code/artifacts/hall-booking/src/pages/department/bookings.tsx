@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import {
   useListBookings, useCancelBooking, useCreateReview,
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, XCircle, Star, CalendarDays, MapPin, Users, Hash, Clock, FileText, UtensilsCrossed, Repeat, Printer, ClipboardList, Armchair, PackageCheck, ChevronLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { activityLabel } from "@/lib/labels";
 import { PageHeader } from "@/components/layout/page-header";
@@ -48,6 +48,15 @@ export default function DepartmentBookings() {
   const [reviewBooking, setReviewBooking] = useState<any>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+
+  // Opened from a notification: /department/bookings?booking=<id> shows that booking's details.
+  const search = useSearch();
+  const focusBooking = Number(new URLSearchParams(search).get("booking")) || null;
+  useEffect(() => {
+    if (!focusBooking || !bookings) return;
+    const b = bookings.find((x: any) => x.id === focusBooking);
+    if (b) setViewBooking(b);
+  }, [focusBooking, bookings]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListBookingsQueryKey() });
 

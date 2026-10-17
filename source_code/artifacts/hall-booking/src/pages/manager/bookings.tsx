@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearch } from "wouter";
 import {
   useListBookings, useApproveBooking, useRejectBooking, useChangeBookingStatus,
   useListHalls,
@@ -60,6 +61,16 @@ export default function ManagerBookings() {
   const rows = (bookings ?? []).filter((b: any) => statusFilter === "all" || groupOf(b) === statusFilter).filter((b: any) =>
     !q || [departmentDisplayName(b), b.hall?.nameAr, b.hall?.name, activityLabel(b.activityType), b.reason, String(b.id)].some((v) => v?.includes(q)),
   );
+
+  // Opened from a notification: /manager/bookings?booking=<id> shows that booking's details.
+  const searchParams = useSearch();
+  const focusBooking = Number(new URLSearchParams(searchParams).get("booking")) || null;
+  useEffect(() => {
+    if (!focusBooking || !bookings) return;
+    const b = bookings.find((x: any) => x.id === focusBooking);
+    if (b) openAction(b, "view");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusBooking, bookings]);
 
   const openAction = (booking: any, act: typeof action) => {
     setSelectedBooking(booking);
