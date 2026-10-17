@@ -141,6 +141,17 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS notifications_batch_idx ON public.notifications (batch_id) WHERE batch_id IS NOT NULL;
     `,
   },
+  {
+    id: "007_booking_archive",
+    description: "Archive for finished/cancelled bookings and the post-booking review invitation flag",
+    sql: `
+      ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS archived_at timestamp;
+      ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS archived_by integer;
+      ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS review_prompted boolean NOT NULL DEFAULT false;
+      UPDATE public.bookings SET review_prompted = true WHERE status = 'completed';
+      CREATE INDEX IF NOT EXISTS bookings_archived_idx ON public.bookings (archived_at);
+    `,
+  },
 ];
 
 async function tableExists(name: string): Promise<boolean> {

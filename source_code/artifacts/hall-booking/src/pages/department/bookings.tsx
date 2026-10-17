@@ -5,8 +5,6 @@ import {
   getListBookingsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,21 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, XCircle, Star, CalendarDays, MapPin, Users, Hash, Clock, FileText, UtensilsCrossed, Repeat, Printer, ClipboardList, Armchair, PackageCheck } from "lucide-react";
+import { Eye, XCircle, Star, CalendarDays, MapPin, Users, Hash, Clock, FileText, UtensilsCrossed, Repeat, Printer, ClipboardList, Armchair, PackageCheck, ChevronLeft } from "lucide-react";
 import { Link } from "wouter";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { activityLabel } from "@/lib/labels";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState, Fact, FilterChips, SectionTitle, StatusBadge, Ticket, relativeDay, toneOf, TimeRange } from "@/components/booking/ticket";
+import { todayIso } from "@/lib/calendar";
+import { ArchiveAllButton, isArchivable, useArchive } from "@/components/booking/archive-actions";
+import { Archive } from "lucide-react";
 
-const STATUS_AR: Record<string, { label: string; cls: string }> = {
-  pending: { label: "معلق", cls: "bg-amber-100 text-amber-700" },
-  approved: { label: "موافق عليه", cls: "bg-emerald-100 text-emerald-700" },
-  partially_approved: { label: "موافقة جزئية", cls: "bg-teal-100 text-teal-700" },
-  rejected: { label: "مرفوض", cls: "bg-red-100 text-red-700" },
-  cancelled: { label: "ملغي", cls: "bg-muted text-muted-foreground" },
-  completed: { label: "مكتمل", cls: "bg-primary/10 text-primary" },
-  emergency_cancelled: { label: "ملغي طارئ", cls: "bg-orange-100 text-orange-700" },
-};
 
 function StarPicker({ value, onChange, readOnly }: { value: number; onChange: (v: number) => void; readOnly?: boolean }) {
   return (
@@ -88,125 +81,150 @@ export default function DepartmentBookings() {
     }
   };
 
-  const RowActions = ({ booking }: { booking: any }) => (
-<div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setViewBooking(booking)}>
-                            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                          </Button>
-                          {!["rejected", "cancelled", "emergency_cancelled"].includes(booking.status) && (
-                            <Button size="icon" variant="ghost" className="h-8 w-8" title="طباعة إشعار الحجز" onClick={() => window.open(`/print/booking/${booking.id}`, "_blank")}>
-                              <Printer className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          )}
-                          {booking.status === "pending" && (
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:bg-red-50" onClick={() => setCancelTarget(booking)}>
-                              <XCircle className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {booking.status === "completed" && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className={`h-8 w-8 ${booking.review ? "text-amber-500 hover:bg-amber-50" : "text-amber-400 hover:bg-amber-50"}`}
-                              title={booking.review ? "عرض التقييم" : "إضافة تقييم"}
-                              onClick={() => {
-                                setReviewBooking(booking);
-                                if (booking.review) {
-                                  setRating(Math.round(booking.review.overallRating ?? booking.review.cleanlinessRating ?? 5));
-                                  setComment(booking.review.comment ?? "");
-                                } else {
-                                  setRating(5);
-                                  setComment("");
-                                }
-                              }}
-                            >
-                              <Star className={`w-4 h-4 ${booking.review ? "fill-amber-400" : ""}`} />
-                            </Button>
-                          )}
-                        </div>
-  );
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "completed" | "closed" | "review">("all");
+  const today = todayIso();
+  const groupOf = (b: any) => (b.status === "approved" || b.status === "partially_approved" ? "approved" : ["rejected", "cancelled", "emergency_cancelled"].includes(b.status) ? "closed" : b.status);
+  const canReview = (b: any) => b.status === "completed" && !b.review && !b.manualDepartmentName;
+  const toReview = (bookings ?? []).filter(canReview);
+  const list = (bookings ?? []).filter((b: any) => filter === "all" || (filter === "review" ? canReview(b) : groupOf(b) === filter));
+  const isUpcoming = (b: any) => (b.endDate || b.startDate) >= today && !["rejected", "cancelled", "emergency_cancelled", "completed"].includes(b.status);
+  const upcoming = list.filter(isUpcoming).sort((a: any, b: any) => (a.startDate + a.startTime).localeCompare(b.startDate + b.startTime));
+  const past = list.filter((b: any) => !isUpcoming(b)).sort((a: any, b: any) => (b.startDate + b.startTime).localeCompare(a.startDate + a.startTime));
+  const count = (g: string) => (bookings ?? []).filter((b: any) => groupOf(b) === g).length;
+
+  const openReview = (booking: any) => {
+    setReviewBooking(booking);
+    if (booking.review) {
+      setRating(Math.round(booking.review.overallRating ?? booking.review.cleanlinessRating ?? 5));
+      setComment(booking.review.comment ?? "");
+    } else {
+      setRating(5);
+      setComment("");
+    }
+  };
+
+  const archive = useArchive("/department/archive");
+  const archivablePast = past.filter(isArchivable);
+
+  const renderTicket = (booking: any) => {
+    const tone = toneOf(booking.status);
+    const closed = ["rejected", "cancelled", "emergency_cancelled"].includes(booking.status);
+    return (
+      <Ticket
+        key={booking.id}
+        date={booking.startDate}
+        tone={tone}
+        muted={closed}
+        highlight={isUpcoming(booking) && booking.startDate === today}
+        onClick={() => setViewBooking(booking)}
+        actions={
+          <>
+            {booking.status === "completed" && !booking.manualDepartmentName && (
+              <Button size="sm" variant={booking.review ? "ghost" : "outline"} className="h-9 gap-1.5" onClick={() => openReview(booking)}>
+                <Star className={`w-4 h-4 text-amber-500 ${booking.review ? "fill-amber-400" : ""}`} />
+                {booking.review ? "تقييمك" : "قيّم القاعة"}
+              </Button>
+            )}
+            {booking.status === "pending" && (
+              <Button size="sm" variant="ghost" className="h-9 gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10" onClick={() => setCancelTarget(booking)}>
+                <XCircle className="w-4 h-4" />إلغاء الطلب
+              </Button>
+            )}
+            {!closed && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" title="طباعة إشعار الحجز" aria-label="طباعة إشعار الحجز" onClick={() => window.open(`/print/booking/${booking.id}`, "_blank")}>
+                <Printer className="w-4 h-4" />
+              </Button>
+            )}
+            {isArchivable(booking) && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" title="نقل إلى الأرشيف" aria-label="نقل إلى الأرشيف" onClick={() => archive.archiveIds([booking.id])} disabled={archive.busy}>
+                <Archive className="w-4 h-4" />
+              </Button>
+            )}
+            <Button size="icon" variant="ghost" className="h-9 w-9" title="التفاصيل" aria-label="التفاصيل" onClick={() => setViewBooking(booking)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h3 className="font-bold text-base truncate">{booking.hall?.nameAr || booking.hall?.name}</h3>
+          <StatusBadge status={booking.status} />
+        </div>
+        <p className="text-sm mt-1 truncate">{booking.reason || activityLabel(booking.activityType)}</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+          <Fact icon={Clock}><TimeRange start={booking.startTime} end={booking.endTime} /></Fact>
+          <Fact icon={CalendarDays}>{booking.endDate && booking.endDate !== booking.startDate ? `حتى ${formatDate(booking.endDate)}` : relativeDay(booking.startDate)}</Fact>
+          {booking.reason && <Fact icon={FileText}>{activityLabel(booking.activityType)}</Fact>}
+          {booking.attendees ? <Fact icon={Users}>{booking.attendees} شخص</Fact> : null}
+          {booking.isRecurring && <Fact icon={Repeat}>أسبوعي</Fact>}
+        </div>
+      </Ticket>
+    );
+  };
 
   return (
     <MainLayout>
-      <div className="space-y-5">
+      <div className="space-y-5 max-w-5xl">
         <PageHeader
           icon={ClipboardList}
           title="حجوزاتي"
-          description="متابعة حالة طلبات الحجز وطباعة إشعار الحجز المعتمد"
-          actions={<Button asChild><Link href="/department/halls"><CalendarDays className="w-4 h-4" />حجز قاعة جديدة</Link></Button>}
+          description="طلباتك وحالتها، وطباعة إشعار الحجز بعد الموافقة"
+          actions={<Button asChild><Link href="/department/halls"><CalendarDays className="w-4 h-4" />حجز قاعة</Link></Button>}
         />
 
-        <div className="md:hidden space-y-2.5">
-          {isLoading ? <Skeleton className="h-24 rounded-xl" /> : !bookings?.length ? (
-            <div className="text-center py-12 text-muted-foreground rounded-xl border bg-card">
-              <CalendarDays className="w-8 h-8 mx-auto mb-2 opacity-50" />لا توجد حجوزات
-            </div>
-          ) : bookings.map((booking) => {
-            const si = STATUS_AR[booking.status] ?? { label: booking.status, cls: "bg-muted text-foreground" };
-            return (
-              <div key={booking.id} className="rounded-xl border bg-card p-3.5 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-sm">{booking.hall?.nameAr || booking.hall?.name}</p>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${si.cls}`}>{si.label}</span>
-                </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{formatDate(booking.startDate)}</span>
-                  <span className="inline-flex items-center gap-1" dir="ltr"><Clock className="w-3.5 h-3.5" />{booking.startTime} – {booking.endTime}</span>
-                  <span>{activityLabel(booking.activityType)}</span>
-                </div>
-                <RowActions booking={booking} />
-              </div>
-            );
-          })}
-        </div>
+        {!!bookings?.length && (
+          <FilterChips<typeof filter>
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all", label: "الكل", count: bookings.length },
+              { value: "pending", label: "بانتظار القرار", count: count("pending"), tone: "amber" },
+              { value: "approved", label: "موافق عليها", count: count("approved"), tone: "emerald" },
+              { value: "completed", label: "منتهية", count: count("completed"), tone: "sky" },
+              { value: "closed", label: "مرفوضة وملغاة", count: count("closed"), tone: "slate" },
+              ...(toReview.length ? [{ value: "review" as const, label: "بانتظار تقييمك", count: toReview.length, tone: "violet" as const }] : []),
+            ]}
+          />
+        )}
 
-        <Card className="hidden md:block">
-          <CardContent className="p-2">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>القاعة</TableHead>
-                  <TableHead>التاريخ والوقت</TableHead>
-                  <TableHead>النشاط</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>الإجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array(5).fill(0).map((_, i) => (
-                    <TableRow key={i}>
-                      {[1,2,3,4,5].map(j => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}
-                    </TableRow>
-                  ))
-                ) : !bookings?.length ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                      <CalendarDays className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                      لا توجد حجوزات. <Link href="/department/halls" className="text-primary underline">احجز قاعة الآن</Link>
-                    </TableCell>
-                  </TableRow>
-                ) : bookings.map(booking => {
-                  const si = STATUS_AR[booking.status] ?? { label: booking.status, cls: "bg-muted text-foreground" };
-                  return (
-                    <TableRow key={booking.id} className="hover:bg-muted/40">
-                      <TableCell className="font-medium text-sm">{booking.hall?.nameAr || booking.hall?.name}</TableCell>
-                      <TableCell>
-                        <p className="text-sm">{formatDate(booking.startDate)}</p>
-                        <p className="text-xs text-muted-foreground"><span dir="ltr">{booking.startTime} – {booking.endTime}</span></p>
-                      </TableCell>
-                      <TableCell className="text-sm">{activityLabel(booking.activityType)}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${si.cls}`}>{si.label}</span>
-                      </TableCell>
-                      <TableCell><RowActions booking={booking} /></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {toReview.length > 0 && filter !== "review" && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 dark:bg-amber-500/10 px-4 py-3">
+            <Star className="w-5 h-5 text-amber-500 fill-amber-400 shrink-0" />
+            <p className="text-sm flex-1">انتهى {toReview.length === 1 ? "حجز واحد" : `${toReview.length} حجوزات`} ولم تقيّم القاعة بعد. رأيكم يساعد في تحسين القاعات.</p>
+            <Button size="sm" variant="outline" className="bg-background shrink-0" onClick={() => setFilter("review")}>قيّم الآن</Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
+        ) : !bookings?.length ? (
+          <EmptyState
+            icon={CalendarDays}
+            title="لم تحجز أي قاعة بعد"
+            hint="اختر قاعة وموعداً مناسباً، وسيصلك إشعار عند الموافقة على طلبك."
+            action={<Button asChild><Link href="/department/halls"><CalendarDays className="w-4 h-4" />احجز قاعة</Link></Button>}
+          />
+        ) : !list.length ? (
+          <EmptyState icon={ClipboardList} title="لا توجد طلبات بهذه الحالة" action={<Button variant="outline" onClick={() => setFilter("all")}>عرض كل الطلبات</Button>} />
+        ) : (
+          <div className="space-y-6">
+            {upcoming.length > 0 && (
+              <section className="space-y-3">
+                <SectionTitle count={upcoming.length}>القادمة</SectionTitle>
+                {upcoming.map(renderTicket)}
+              </section>
+            )}
+            {past.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <SectionTitle count={past.length}>السابقة</SectionTitle>
+                  <ArchiveAllButton count={archivablePast.length} busy={archive.busy} onClick={() => archive.archiveIds(archivablePast.map((b: any) => b.id))} />
+                </div>
+                {past.map(renderTicket)}
+              </section>
+            )}
+          </div>
+        )}
       </div>
 
       {/* View Dialog */}
@@ -218,9 +236,7 @@ export default function DepartmentBookings() {
           {viewBooking && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_AR[viewBooking.status]?.cls ?? "bg-muted text-foreground"}`}>
-                  {STATUS_AR[viewBooking.status]?.label ?? viewBooking.status}
-                </span>
+                <StatusBadge status={viewBooking.status} />
                 <span className="text-xs text-muted-foreground">طلب رقم #{viewBooking.id}</span>
               </div>
 
@@ -269,7 +285,7 @@ export default function DepartmentBookings() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" /> الوقت</p>
-                      <p className="font-medium"><span dir="ltr">{viewBooking.startTime} – {viewBooking.endTime}</span></p>
+                      <p className="font-medium"><TimeRange start={viewBooking.startTime} end={viewBooking.endTime} className="font-medium" /></p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">النشاط</p>

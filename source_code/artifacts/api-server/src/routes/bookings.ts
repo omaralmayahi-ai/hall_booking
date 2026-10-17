@@ -1,3 +1,4 @@
+import { completeExpiredBookings } from "../lib/archive";
 import { Router, type IRouter } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, bookingsTable, hallsTable, usersTable, waitlistTable, notificationsTable, reviewsTable } from "@workspace/db";
@@ -74,13 +75,14 @@ async function notifyManagers(values: Omit<typeof notificationsTable.$inferInser
 
 const router: IRouter = Router();
 
-function serializeBooking(b: any) {
+export function serializeBooking(b: any) {
   return {
     ...b,
     startDate: b.startDate,
     endDate: b.endDate,
     createdAt: b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
     updatedAt: b.updatedAt instanceof Date ? b.updatedAt.toISOString() : b.updatedAt,
+    archivedAt: b.archivedAt instanceof Date ? b.archivedAt.toISOString() : b.archivedAt ?? null,
     hall: b.hall ? {
       ...b.hall,
       images: (b.hall.images || []).map((url: string, idx: number) => ({ id: idx + 1, url })),
@@ -99,16 +101,7 @@ function serializeBooking(b: any) {
   };
 }
 
-export async function completeExpiredBookings(): Promise<void> {
-  await db.update(bookingsTable)
-    .set({ status: "completed", updatedAt: new Date() })
-    .where(
-      and(
-        sql`${bookingsTable.status} IN ('approved', 'partially_approved')`,
-        sql`(${bookingsTable.endDate} || ' ' || substr(${bookingsTable.endTime}, 1, 5)) < ${localStamp()}`
-      )
-    );
-}
+export { completeExpiredBookings };
 
 async function getBookingWithDetails(id: number) {
   const result = await db
@@ -141,6 +134,8 @@ router.get("/bookings", requireAuth, async (req: AuthenticatedRequest, res): Pro
   if (req.user!.role === "requesting_department") {
     conditions.push(eq(bookingsTable.userId, req.user!.id));
   }
+  // Archived bookings live in the archive view (GET /bookings/archive) unless explicitly asked for.
+  if (req.query.archived !== "include") conditions.push(sql`${bookingsTable.archivedAt} IS NULL`);
   if (params.success) {
     if (params.data.status) conditions.push(eq(bookingsTable.status, params.data.status as any));
     if (params.data.hallId) conditions.push(eq(bookingsTable.hallId, params.data.hallId));

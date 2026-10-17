@@ -13,7 +13,7 @@ type D = PlatformOptions["display"];
 type Setter = <K extends keyof D>(key: K, value: D[K]) => void;
 
 /** Card-style single choice (the platform avoids toggle switches). */
-function Choice<T extends string>({ value, onChange, options, cols = 3 }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; hint?: string; preview?: React.ReactNode }[]; cols?: number }) {
+export function Choice<T extends string>({ value, onChange, options, cols = 3 }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; hint?: string; preview?: React.ReactNode }[]; cols?: number }) {
   return (
     <div className={cn("grid gap-2", cols === 2 ? "grid-cols-2" : cols === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-3")}>
       {options.map((o) => {

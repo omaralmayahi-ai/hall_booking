@@ -9,6 +9,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { logger } from "./logger";
+import { runAutoArchive, runReviewInvites } from "./archive";
 import { getOptions } from "./options";
 import { occurrences } from "./booking-rules";
 import { addDays, hhmm, localDate } from "./time";
@@ -140,6 +141,8 @@ export function startBackgroundJobs(): void {
   const tick = () => {
     runScheduledMaintenance().catch((err) => logger.error({ err }, "Preventive maintenance job failed"));
     runBookingReminders().catch((err) => logger.error({ err }, "Booking reminder job failed"));
+    runReviewInvites().catch((err) => logger.error({ err }, "Review invitation job failed"));
+    runAutoArchive().catch((err) => logger.error({ err }, "Auto-archive job failed"));
   };
   setTimeout(tick, 5_000);
   timer = setInterval(tick, 10 * 60 * 1000);

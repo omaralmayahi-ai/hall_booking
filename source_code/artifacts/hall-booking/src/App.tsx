@@ -23,6 +23,8 @@ const ManagerDashboard = lazy(() => import("@/pages/manager/dashboard"));
 const ManagerHalls = lazy(() => import("@/pages/manager/halls"));
 const ManagerBookings = lazy(() => import("@/pages/manager/bookings"));
 const ManagerBookingLog = lazy(() => import("@/pages/manager/booking-log"));
+const ManagerArchive = lazy(() => import("@/pages/manager/archive"));
+const DepartmentArchive = lazy(() => import("@/pages/department/archive"));
 const ManagerMaintenance = lazy(() => import("@/pages/manager/maintenance"));
 const ManagerReviews = lazy(() => import("@/pages/manager/reviews"));
 const ManagerNotifications = lazy(() => import("@/pages/manager/notifications"));
@@ -111,6 +113,7 @@ const ROUTES: Record<string, RouteDef[]> = {
     { path: "/manager/halls", component: ManagerHalls },
     { path: "/manager/bookings", component: ManagerBookings },
     { path: "/manager/booking-log", component: ManagerBookingLog },
+    { path: "/manager/archive", component: ManagerArchive },
     { path: "/manager/maintenance", component: ManagerMaintenance },
     { path: "/manager/reviews", component: ManagerReviews },
     { path: "/manager/notifications", component: ManagerNotifications },
@@ -122,6 +125,7 @@ const ROUTES: Record<string, RouteDef[]> = {
     { path: "/department/calendar", component: CalendarPage },
     { path: "/department/halls", component: DepartmentHalls },
     { path: "/department/bookings", component: DepartmentBookings },
+    { path: "/department/archive", component: DepartmentArchive },
     { path: "/department/notifications", component: DepartmentNotifications },
     { path: "/department/profile", component: DepartmentProfile },
   ],

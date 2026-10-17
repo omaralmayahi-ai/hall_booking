@@ -6,7 +6,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle, Bell, CalendarCog, CheckCircle2, ClipboardList, Fingerprint, History, ImageIcon, Loader2, MonitorPlay, Palette, Plus,
-  Printer, RotateCcw, Save, Settings2, ShieldCheck, Star, Trash2, Upload, Users, Wrench, X, Database, Building, ExternalLink,
+  Printer, RotateCcw, Save, Settings2, ShieldCheck, Star, Trash2, Upload, Users, Wrench, X, Database, DatabaseBackup, Building, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import { WEEKDAYS_AR } from "@/lib/options";
 import { makeIconSet, readFileAsDataUrl, resizeImage } from "@/lib/image";
 import { cn } from "@/lib/utils";
 import { ScreenSettings } from "./screen-settings";
+import { BackupSettings, backupBeforeReset } from "./backup-settings";
 import { CheckRow, Field, NumberField, Section } from "./settings-ui";
 
 interface BaseSettings {
@@ -55,6 +56,7 @@ const TABS = [
   { key: "display", label: "العرض والطباعة", icon: Printer },
   { key: "screens", label: "شاشات العرض", icon: MonitorPlay },
   { key: "security", label: "الأمان", icon: ShieldCheck },
+  { key: "backup", label: "النسخ الاحتياطي", icon: DatabaseBackup },
   { key: "data", label: "البيانات", icon: Database },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -503,7 +505,9 @@ export default function AdminSettings() {
               </Section>
             )}
 
-            {tab === "data" && <FactoryReset />}
+            {tab === "backup" && <BackupSettings b={o!.backup} saved={opts!.backup} set={(k, v) => setOpt("backup", k, v)} />}
+
+            {tab === "data" && <FactoryReset offerBackup={opts?.backup.offerBeforeReset ?? true} onOpenBackups={() => setTab("backup")} />}
           </div>
         )}
       </div>
@@ -523,7 +527,7 @@ export default function AdminSettings() {
 
 /* ---------------- factory reset (unchanged behaviour, new layout) ---------------- */
 
-function FactoryReset() {
+function FactoryReset({ offerBackup, onOpenBackups }: { offerBackup: boolean; onOpenBackups: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const full = useFactoryResetFull();
@@ -535,6 +539,13 @@ function FactoryReset() {
   const reviews = useFactoryResetReviews();
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [withBackup, setWithBackup] = useState(offerBackup);
+  const [phase, setPhase] = useState<"idle" | "backup" | "run">("idle");
+  const openAction = (key: string) => {
+    setActiveKey(key);
+    setConfirmText("");
+    setWithBackup(offerBackup);
+  };
 
   const actions = [
     { key: "notifications", icon: Bell, title: "حذف الإشعارات", description: "حذف جميع الإشعارات لكل المستخدمين", mutation: notifications },
@@ -550,21 +561,35 @@ function FactoryReset() {
   const run = async () => {
     if (!active) return;
     try {
+      if (withBackup) {
+        setPhase("backup");
+        try {
+          const b = await backupBeforeReset();
+          toast({ title: "أُخذت نسخة احتياطية قبل التنفيذ", description: b.name });
+        } catch (e) {
+          toast({ variant: "destructive", title: "تعذّر أخذ النسخة الاحتياطية — لم يُنفَّذ الحذف", description: errorMessage(e, "يمكنك إلغاء تحديد خيار النسخ والمتابعة") });
+          setPhase("idle");
+          return;
+        }
+      }
+      setPhase("run");
       const r = (await active.mutation.mutateAsync({} as never)) as { message?: string };
       toast({ title: r?.message || "تم التنفيذ" });
       qc.invalidateQueries();
+      setActiveKey(null);
+      setConfirmText("");
     } catch {
       toast({ variant: "destructive", title: "فشل التنفيذ" });
     } finally {
-      setActiveKey(null);
-      setConfirmText("");
+      setPhase("idle");
     }
   };
 
   return (
     <>
-      <div className="rounded-xl border border-sky-200 bg-sky-50/70 dark:bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
-        تُؤخذ نسخة احتياطية تلقائية من قاعدة البيانات قبل أي عملية حذف هنا (في مجلد <span dir="ltr" className="font-mono">data\backups</span>)، ويمكن استرجاعها من ملف <b>control app.bat</b>.
+      <div className="rounded-xl border border-sky-200 bg-sky-50/70 dark:bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p className="flex-1">رسالة التأكيد تقترح أخذ نسخة احتياطية قبل التنفيذ (اختياري). لاستعادة البيانات لاحقاً استخدم تبويب «النسخ الاحتياطي».</p>
+        <Button type="button" variant="outline" size="sm" className="shrink-0 bg-background" onClick={onOpenBackups}><DatabaseBackup className="w-3.5 h-3.5" />النسخ الاحتياطي</Button>
       </div>
       <Card className="border-red-200">
         <CardHeader className="pb-3">
@@ -581,19 +606,25 @@ function FactoryReset() {
                   <p className="text-xs text-muted-foreground">{a.description}</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50 shrink-0 self-start sm:self-auto" onClick={() => { setActiveKey(a.key); setConfirmText(""); }}>
+              <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50 shrink-0 self-start sm:self-auto" onClick={() => openAction(a.key)}>
                 <RotateCcw className="w-3.5 h-3.5" />تنفيذ
               </Button>
             </div>
           ))}
         </CardContent>
       </Card>
-      <AlertDialog open={!!active} onOpenChange={(v) => { if (!v) { setActiveKey(null); setConfirmText(""); } }}>
+      <AlertDialog open={!!active} onOpenChange={(v) => { if (!v && phase === "idle") { setActiveKey(null); setConfirmText(""); } }}>
         <AlertDialogContent dir="rtl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-red-700 flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{active?.title}</AlertDialogTitle>
             <AlertDialogDescription>{active?.description}. لا يمكن التراجع عن هذا الإجراء إلا باسترجاع نسخة احتياطية.</AlertDialogDescription>
           </AlertDialogHeader>
+          <CheckRow
+            checked={withBackup}
+            onChange={setWithBackup}
+            title="أخذ نسخة احتياطية قبل التنفيذ"
+            description={withBackup ? "موصى به — تستطيع استعادة البيانات منها لاحقاً من تبويب «النسخ الاحتياطي»" : "لن تُؤخذ نسخة — لن تتمكن من استعادة ما سيُحذف"}
+          />
           {active?.typed && (
             <div className="space-y-1.5">
               <Label className="text-xs">للتأكيد اكتب <b className="text-red-600">حذف الكل</b></Label>
@@ -601,9 +632,10 @@ function FactoryReset() {
             </div>
           )}
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={active?.mutation.isPending || (active?.typed && confirmText.trim() !== "حذف الكل")} onClick={(e) => { e.preventDefault(); run(); }}>
-              {active?.mutation.isPending ? "جاري التنفيذ..." : "تأكيد"}
+            <AlertDialogCancel disabled={phase !== "idle"}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={phase !== "idle" || (active?.typed && confirmText.trim() !== "حذف الكل")} onClick={(e) => { e.preventDefault(); run(); }}>
+              {phase !== "idle" && <Loader2 className="w-4 h-4 animate-spin" />}
+              {phase === "backup" ? "جارٍ أخذ النسخة..." : phase === "run" ? "جاري التنفيذ..." : withBackup ? "نسخ احتياطي ثم تنفيذ" : "تنفيذ بدون نسخة"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { PageHeader } from "@/components/layout/page-header";
+import { ClearReadButton } from "@/components/notifications/clear-read-button";
 import { Bell as BellIcon } from "lucide-react";
 import {
   useListNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, useDeleteNotification,
@@ -158,12 +159,15 @@ export default function ManagerNotifications() {
             <h2 className="text-lg font-semibold text-foreground">صندوق الوارد</h2>
             <p className="text-muted-foreground text-sm">{unreadCount > 0 ? `${unreadCount} إشعار غير مقروء` : "جميع الإشعارات مقروءة"}</p>
           </div>
-          {unreadCount > 0 && (
-            <Button variant="outline" onClick={handleMarkAll} className="gap-2 h-8 text-sm">
-              <CheckCheck className="w-4 h-4" />
-              تحديد الكل كمقروء
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {unreadCount > 0 && (
+              <Button variant="outline" onClick={handleMarkAll} className="gap-2 h-8 text-sm">
+                <CheckCheck className="w-4 h-4" />
+                تحديد الكل كمقروء
+              </Button>
+            )}
+            <ClearReadButton readCount={(notifications?.length ?? 0) - unreadCount} className="h-8 text-sm" />
+          </div>
         </div>
 
         <Card >

@@ -1,107 +1,144 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { PageHeader } from "@/components/layout/page-header";
-import { CalendarOff as CalendarOffIcon } from "lucide-react";
-import {
-  useListHolidays, useCreateHoliday, useDeleteHoliday, getListHolidaysQueryKey,
-} from "@workspace/api-client-react";
+import { useListHolidays, useCreateHoliday, useDeleteHoliday, getListHolidaysQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarDays, Plus, Trash2 } from "lucide-react";
+import { CalendarOff, Loader2, Plus, Trash2 } from "lucide-react";
+import { DateLeaf, EmptyState, SectionTitle, daysFromToday, relativeDay } from "@/components/booking/ticket";
+import { errorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { todayIso } from "@/lib/calendar";
 
-export default function ManagerSettings() {
+export default function ManagerHolidays() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { data: holidays, isLoading: holidaysLoading } = useListHolidays();
+  const { data: holidays, isLoading } = useListHolidays();
   const createHoliday = useCreateHoliday();
   const deleteHoliday = useDeleteHoliday();
+  const [name, setName] = useState("");
+  const [date, setDate] = useState("");
+  const [toDelete, setToDelete] = useState<{ id: number; name: string; date: string } | null>(null);
+  const today = todayIso();
 
-  const [newHoliday, setNewHoliday] = useState({ name: "", nameAr: "", date: "" });
+  const { upcoming, past } = useMemo(() => {
+    const all = [...(holidays ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    return { upcoming: all.filter((h) => h.date >= today), past: all.filter((h) => h.date < today).reverse() };
+  }, [holidays, today]);
 
-  const handleAddHoliday = async () => {
-    if (!newHoliday.date || !newHoliday.nameAr) return;
+  const duplicate = !!date && (holidays ?? []).some((h) => h.date.slice(0, 10) === date);
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !date || duplicate) return;
     try {
-      await createHoliday.mutateAsync({ data: { name: newHoliday.name || newHoliday.nameAr, nameAr: newHoliday.nameAr, date: newHoliday.date } });
-      toast({ title: "تم إضافة الإجازة" });
-      setNewHoliday({ name: "", nameAr: "", date: "" });
+      await createHoliday.mutateAsync({ data: { name: name.trim(), nameAr: name.trim(), date } });
+      toast({ title: "أُضيفت العطلة", description: `${name.trim()} — ${formatDate(date)}` });
+      setName("");
+      setDate("");
       qc.invalidateQueries({ queryKey: getListHolidaysQueryKey() });
-    } catch {
-      toast({ variant: "destructive", title: "فشل إضافة الإجازة" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "تعذّرت إضافة العطلة", description: errorMessage(err, "") });
     }
   };
 
-  const handleDeleteHoliday = async (id: number) => {
+  const remove = async () => {
+    if (!toDelete) return;
     try {
-      await deleteHoliday.mutateAsync({ id });
-      toast({ title: "تم حذف الإجازة" });
+      await deleteHoliday.mutateAsync({ id: toDelete.id });
+      toast({ title: "حُذفت العطلة" });
       qc.invalidateQueries({ queryKey: getListHolidaysQueryKey() });
-    } catch {
-      toast({ variant: "destructive", title: "فشل الحذف" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "تعذّر حذف العطلة", description: errorMessage(err, "") });
+    } finally {
+      setToDelete(null);
     }
+  };
+
+  const row = (h: { id: number; name: string; nameAr?: string | null; date: string }, isPast: boolean) => {
+    const label = h.nameAr || h.name;
+    const d = daysFromToday(h.date.slice(0, 10));
+    return (
+      <li key={h.id} className="flex items-stretch rounded-2xl border bg-card overflow-hidden">
+        <DateLeaf date={h.date.slice(0, 10)} tone="violet" muted={isPast} />
+        <div className="flex-1 min-w-0 flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold truncate">{label}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{formatDate(h.date)}</p>
+          </div>
+          {!isPast && (
+            <span className={d <= 7 ? "text-xs font-semibold rounded-full px-2.5 py-1 bg-violet-500/10 text-violet-700 dark:text-violet-300 whitespace-nowrap" : "text-xs text-muted-foreground whitespace-nowrap"}>
+              {relativeDay(h.date.slice(0, 10))}
+            </span>
+          )}
+          <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 shrink-0" aria-label={`حذف ${label}`} onClick={() => setToDelete({ id: h.id, name: label, date: h.date })}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </li>
+    );
   };
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <PageHeader icon={CalendarOffIcon} title="إعدادات مدير العلاقات" description="إدارة الإجازات الرسمية التي تمنع الحجز في أيامها" />
+      <div className="space-y-5 max-w-4xl">
+        <PageHeader icon={CalendarOff} title="العطل الرسمية" description="أيام لا يمكن الحجز فيها، وتظهر بالبنفسجي في تقويم الحجز" />
 
-        <Card >
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-rose-500" />
-              <CardTitle className="text-base">الإجازات الرسمية</CardTitle>
-            </div>
-            <CardDescription>إضافة وإدارة أيام العطل الرسمية التي لا يُسمح فيها بالحجز</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3 p-4 bg-muted/40 rounded-xl">
-              <div className="space-y-1">
-                <Label className="text-xs">اسم الإجازة</Label>
-                <Input value={newHoliday.nameAr} onChange={e => setNewHoliday(p => ({ ...p, nameAr: e.target.value }))} placeholder="مثال: اليوم الوطني" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">التاريخ</Label>
-                <Input type="date" value={newHoliday.date} onChange={e => setNewHoliday(p => ({ ...p, date: e.target.value }))} dir="ltr" />
-              </div>
-              <div className="flex items-end">
-                <Button onClick={handleAddHoliday} disabled={!newHoliday.date || !newHoliday.nameAr} className="w-full gap-2 bg-primary">
-                  <Plus className="w-4 h-4" />
-                  إضافة
-                </Button>
-              </div>
-            </div>
+        <form onSubmit={add} className="rounded-2xl border bg-card p-4 sm:p-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end">
+          <div className="space-y-1.5">
+            <Label htmlFor="h-name">اسم العطلة</Label>
+            <Input id="h-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="مثل: عيد الأضحى" maxLength={80} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="h-date">التاريخ</Label>
+            <Input id="h-date" type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} dir="ltr" className="text-right" />
+          </div>
+          <Button type="submit" disabled={!name.trim() || !date || duplicate || createHoliday.isPending} className="h-10">
+            {createHoliday.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            إضافة العطلة
+          </Button>
+          {duplicate && <p className="text-xs text-rose-600 sm:col-span-3">هذا التاريخ مضاف مسبقاً عطلةً رسمية.</p>}
+        </form>
 
-            {holidaysLoading ? (
-              <div className="space-y-2">{[1, 2].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-            ) : !holidays?.length ? (
-              <p className="text-sm text-muted-foreground text-center py-4">لا توجد إجازات رسمية مضافة</p>
-            ) : (
-              <div className="space-y-2">
-                {holidays.map(h => (
-                  <div key={h.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/40">
-                    <div className="flex items-center gap-3">
-                      <CalendarDays className="w-4 h-4 text-rose-400" />
-                      <div>
-                        <p className="text-sm font-medium">{h.nameAr || h.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(h.date)}</p>
-                      </div>
-                    </div>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteHoliday(h.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+        {isLoading ? (
+          <div className="space-y-2.5">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
+        ) : !holidays?.length ? (
+          <EmptyState icon={CalendarOff} title="لا توجد عطل رسمية" hint="أضف العطل الرسمية القادمة ليمتنع الحجز فيها تلقائياً." />
+        ) : (
+          <div className="space-y-6">
+            <section className="space-y-2.5">
+              <SectionTitle count={upcoming.length}>القادمة</SectionTitle>
+              {upcoming.length ? <ul className="grid gap-2.5 md:grid-cols-2">{upcoming.map((h) => row(h, false))}</ul> : <p className="text-sm text-muted-foreground">لا توجد عطل قادمة.</p>}
+            </section>
+            {past.length > 0 && (
+              <section className="space-y-2.5">
+                <SectionTitle count={past.length}>السابقة</SectionTitle>
+                <ul className="grid gap-2.5 md:grid-cols-2">{past.map((h) => row(h, true))}</ul>
+              </section>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(v) => !v && setToDelete(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف «{toDelete?.name}»؟</AlertDialogTitle>
+            <AlertDialogDescription>سيصبح يوم {toDelete ? formatDate(toDelete.date) : ""} متاحاً للحجز من جديد.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>تراجع</AlertDialogCancel>
+            <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={remove}>حذف العطلة</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

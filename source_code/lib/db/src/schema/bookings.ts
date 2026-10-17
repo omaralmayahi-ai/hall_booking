@@ -47,6 +47,11 @@ export const bookingsTable = pgTable("bookings", {
   publicCode: text("public_code").$defaultFn(() => randomBytes(9).toString("base64url")),
   /** Occurrence date (YYYY-MM-DD) the last reminder was sent for. */
   reminderSentFor: text("reminder_sent_for"),
+  /** Finished / cancelled bookings moved out of the working lists (still counted in reports). */
+  archivedAt: timestamp("archived_at"),
+  archivedBy: integer("archived_by"),
+  /** The department was invited to rate the hall after the booking ended. */
+  reviewPrompted: boolean("review_prompted").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

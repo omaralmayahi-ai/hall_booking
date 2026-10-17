@@ -27,7 +27,7 @@ if (cmd === "write-xml") {
     <keepFiles>8</keepFiles>
   </log>
   <onfailure action="restart" delay="10 sec" />
-  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="5 sec" />
   <resetfailure>1 hour</resetfailure>
   <stoptimeout>25 sec</stoptimeout>
   <startmode>Automatic</startmode>

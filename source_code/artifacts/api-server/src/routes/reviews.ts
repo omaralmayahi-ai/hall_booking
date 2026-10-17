@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, reviewsTable, bookingsTable, usersTable } from "@workspace/db";
 import { CreateReviewParams, CreateReviewBody, ListHallReviewsParams } from "@workspace/api-zod";
+import { completeExpiredBookings } from "../lib/archive";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -17,17 +18,18 @@ router.post("/bookings/:id/review", requireAuth, async (req: AuthenticatedReques
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  await completeExpiredBookings(); // a booking whose last session has ended counts as finished
   const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, params.data.id));
   if (!booking) {
     res.status(404).json({ error: "Booking not found" });
     return;
   }
-  if (booking.userId !== req.user!.id) {
+  if (booking.userId !== req.user!.id || req.user!.role !== "requesting_department" || booking.manualDepartmentName) {
     res.status(403).json({ error: "يمكن تقييم حجوزاتك فقط" });
     return;
   }
-  if (!["completed", "approved", "partially_approved"].includes(booking.status)) {
-    res.status(409).json({ error: "يمكن التقييم بعد انعقاد الحجز فقط" });
+  if (booking.status !== "completed") {
+    res.status(409).json({ error: "يمكن تقييم القاعة بعد انتهاء موعد الحجز فقط" });
     return;
   }
   const [already] = await db.select({ id: reviewsTable.id }).from(reviewsTable).where(eq(reviewsTable.bookingId, booking.id));

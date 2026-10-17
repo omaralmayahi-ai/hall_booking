@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, CalendarRange, FileText, Settings, Bell, KeyRound, Send, Wrench, Star, CalendarCheck2, History,
-  CalendarOff, UserCog, Presentation, Armchair, BarChart3, MonitorPlay, ClipboardList, type LucideIcon,
+  CalendarOff, UserCog, Presentation, Armchair, BarChart3, MonitorPlay, ClipboardList, Archive, type LucideIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -44,6 +44,7 @@ export const NAV: Record<string, NavGroup[]> = {
         { href: "/manager/calendar", label: "تقويم القاعات", icon: CalendarRange },
         { href: "/manager/bookings", label: "طلبات الحجز", icon: CalendarCheck2 },
         { href: "/manager/booking-log", label: "سجل الحجوزات", icon: History },
+        { href: "/manager/archive", label: "أرشيف الحجوزات", icon: Archive },
         { href: "/manager/notifications", label: "الإشعارات", icon: Bell },
       ],
     },
@@ -74,6 +75,7 @@ export const NAV: Record<string, NavGroup[]> = {
         { href: "/department/halls", label: "حجز قاعة", icon: Presentation },
         { href: "/department/calendar", label: "تقويم القاعات", icon: CalendarRange },
         { href: "/department/bookings", label: "حجوزاتي", icon: ClipboardList },
+        { href: "/department/archive", label: "أرشيف حجوزاتي", icon: Archive },
         { href: "/department/notifications", label: "الإشعارات", icon: Bell },
       ],
     },

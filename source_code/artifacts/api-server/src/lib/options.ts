@@ -39,6 +39,7 @@ export interface PlatformOptions {
     requireCoordinator: boolean;
     requireAttendees: boolean;
     cateringLeadHours: number;
+    autoArchiveDays: number;
     seatingLayouts: string[];
     activityTypes: string[];
   };
@@ -77,6 +78,17 @@ export interface PlatformOptions {
     tickerBgColor: string;
     tickerLabelColor: string;
     tickerSize: "md" | "lg" | "xl";
+  };
+  backup: {
+    scheduleEnabled: boolean;
+    frequency: "daily" | "weekly" | "monthly";
+    times: string[];
+    weekdays: number[];
+    monthDay: number;
+    directory: string;
+    keepScheduled: number;
+    maxAgeDays: number;
+    offerBeforeReset: boolean;
   };
   print: {
     headerLine1: string;
@@ -122,6 +134,7 @@ export const DEFAULT_OPTIONS: PlatformOptions = {
     requireCoordinator: false,
     requireAttendees: false,
     cateringLeadHours: 24,
+    autoArchiveDays: 0,
     seatingLayouts: ["مسرحي", "صفّي (فصل دراسي)", "حرف U", "طاولة اجتماعات", "مجموعات (ورشة عمل)", "مأدبة"],
     activityTypes: ["اجتماع", "ورشة عمل", "دورة تدريبية", "ندوة", "مؤتمر", "احتفالية", "مقابلات", "أخرى"],
   },
@@ -159,6 +172,17 @@ export const DEFAULT_OPTIONS: PlatformOptions = {
     tickerBgColor: "#0b3a6e",
     tickerLabelColor: "#c8102e",
     tickerSize: "lg",
+  },
+  backup: {
+    scheduleEnabled: false,
+    frequency: "daily",
+    times: ["02:00"],
+    weekdays: [0],
+    monthDay: 1,
+    directory: "",
+    keepScheduled: 14,
+    maxAgeDays: 0,
+    offerBeforeReset: true,
   },
   print: {
     headerLine1: "",
@@ -231,6 +255,7 @@ export function sanitizeOptions(input: unknown): Partial<Record<Section, Record<
   put("booking", "requireCoordinator", bool(b.requireCoordinator));
   put("booking", "requireAttendees", bool(b.requireAttendees));
   put("booking", "cateringLeadHours", num(b.cateringLeadHours, 0, 240));
+  put("booking", "autoArchiveDays", num(b.autoArchiveDays, 0, 3650));
   put("booking", "seatingLayouts", strList(b.seatingLayouts));
   put("booking", "activityTypes", strList(b.activityTypes));
 
@@ -271,6 +296,21 @@ export function sanitizeOptions(input: unknown): Partial<Record<Section, Record<
     if (/^#[0-9a-f]{6}$/.test(v)) put("display", k, v);
   }
   put("display", "tickerSize", oneOf(d.tickerSize, ["md", "lg", "xl"] as const));
+
+  const bk = isObj(input.backup) ? input.backup : {};
+  put("backup", "scheduleEnabled", bool(bk.scheduleEnabled));
+  put("backup", "frequency", oneOf(bk.frequency, ["daily", "weekly", "monthly"] as const));
+  if (Array.isArray(bk.times)) {
+    put("backup", "times", Array.from(new Set(bk.times.filter((t): t is string => typeof t === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(t)))).sort().slice(0, 8));
+  }
+  if (Array.isArray(bk.weekdays)) {
+    put("backup", "weekdays", Array.from(new Set(bk.weekdays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))).sort());
+  }
+  put("backup", "monthDay", num(bk.monthDay, 1, 31));
+  if (typeof bk.directory === "string") put("backup", "directory", bk.directory.trim().slice(0, 260));
+  put("backup", "keepScheduled", num(bk.keepScheduled, 0, 365));
+  put("backup", "maxAgeDays", num(bk.maxAgeDays, 0, 3650));
+  put("backup", "offerBeforeReset", bool(bk.offerBeforeReset));
 
   const p = isObj(input.print) ? input.print : {};
   for (const k of ["headerLine1", "headerLine2", "headerLine3", "signatureTitle"]) put("print", k, str(p[k], 120));

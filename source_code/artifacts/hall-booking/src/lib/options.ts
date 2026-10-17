@@ -71,6 +71,17 @@ export interface PlatformOptions {
     tickerLabelColor: string;
     tickerSize: "md" | "lg" | "xl";
   };
+  backup: {
+    scheduleEnabled: boolean;
+    frequency: "daily" | "weekly" | "monthly";
+    times: string[];
+    weekdays: number[];
+    monthDay: number;
+    directory: string;
+    keepScheduled: number;
+    maxAgeDays: number;
+    offerBeforeReset: boolean;
+  };
   print: {
     headerLine1: string;
     headerLine2: string;

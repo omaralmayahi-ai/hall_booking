@@ -125,6 +125,14 @@ router.patch("/notifications/read-all", requireAuth, async (req: AuthenticatedRe
   res.json({ success: true });
 });
 
+/** Delete every notification the user has already read. */
+router.post("/notifications/clear-read", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
+  const deleted = await db.delete(notificationsTable).where(
+    and(eq(notificationsTable.userId, req.user!.id), eq(notificationsTable.isRead, true))
+  ).returning({ id: notificationsTable.id });
+  res.json({ deleted: deleted.length });
+});
+
 router.delete("/notifications/:id", requireAuth, async (req: AuthenticatedRequest, res): Promise<void> => {
   const params = DeleteNotificationParams.safeParse(req.params);
   if (!params.success) {

@@ -24,30 +24,14 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, requireRole, type AuthenticatedRequest } from "../middlewares/auth";
 import { logAudit, clientIp } from "../lib/auth";
-import path from "node:path";
-import { rawSql, resolveDataDir } from "@workspace/db";
 import { isValidDate, isValidTime } from "../lib/time";
 import { getOptions, saveOptions, invalidateOptionsCache } from "../lib/options";
+import { syncScheduleState } from "../lib/backups";
 import { saveCustomIcon, resetIcon, hasCustomIcon, iconVersion } from "../lib/branding";
 
 const router: IRouter = Router();
 
-/** Safety net: snapshot the embedded database before any destructive reset. */
-async function autoBackup(tag: string): Promise<void> {
-  if (!rawSql.snapshot) return;
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const file = path.join(resolveDataDir(), "backups", `auto-before-${tag}-${stamp}.tar.gz`);
-  await rawSql.snapshot(file);
-}
-
-router.use("/settings/factory-reset", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, _res, next) => {
-  try {
-    await autoBackup(req.path.replace(/[^a-z-]/gi, "") || "reset");
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
+/* Backups before a reset are optional now: the client offers one (routes/backups.ts). */
 
 async function deleteBookingsCascade(bookingIds: number[]): Promise<{ bookings: number; reviews: number; waitlist: number }> {
   if (bookingIds.length === 0) return { bookings: 0, reviews: 0, waitlist: 0 };
@@ -133,6 +117,7 @@ router.get("/settings/options", requireAuth, requireRole("admin", "relations_man
 
 router.put("/settings/options", requireAuth, requireRole("admin"), async (req: AuthenticatedRequest, res): Promise<void> => {
   const saved = await saveOptions(req.body);
+  syncScheduleState(saved.backup);
   await logAudit(req.user!.id, req.user!.username, "update_settings", "settings_options", undefined, Object.keys(req.body ?? {}).join(","), clientIp(req));
   res.json({ ...saved, icon: { custom: hasCustomIcon(), version: iconVersion() } });
 });

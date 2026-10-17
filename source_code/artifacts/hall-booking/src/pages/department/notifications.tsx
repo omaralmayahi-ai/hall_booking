@@ -1,5 +1,6 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { PageHeader } from "@/components/layout/page-header";
+import { ClearReadButton } from "@/components/notifications/clear-read-button";
 import { Bell as BellIcon } from "lucide-react";
 import { useListNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, useDeleteNotification, getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,12 +48,15 @@ export default function DepartmentNotifications() {
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <PageHeader icon={BellIcon} title="الإشعارات" description={<>{unreadCount > 0 ? `${unreadCount} إشعار غير مقروء` : "جميع الإشعارات مقروءة"}</>} />
-          {unreadCount > 0 && (
-            <Button variant="outline" onClick={handleMarkAll} className="gap-2">
-              <CheckCheck className="w-4 h-4" />
-              تحديد الكل كمقروء
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {unreadCount > 0 && (
+              <Button variant="outline" onClick={handleMarkAll} className="gap-2">
+                <CheckCheck className="w-4 h-4" />
+                تحديد الكل كمقروء
+              </Button>
+            )}
+            <ClearReadButton readCount={(notifications?.length ?? 0) - unreadCount} />
+          </div>
         </div>
 
         <Card >

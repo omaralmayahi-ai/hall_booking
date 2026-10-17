@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import usersRouter from "./users";
 import hallsRouter from "./halls";
+import archiveRouter from "./archive";
 import bookingsRouter from "./bookings";
 import reviewsRouter from "./reviews";
 import maintenanceRouter from "./maintenance";
@@ -13,6 +14,7 @@ import auditRouter from "./audit";
 import publicRouter from "./public";
 import featuresRouter from "./features";
 import reportsRouter from "./reports";
+import backupsRouter from "./backups";
 
 const router: IRouter = Router();
 
@@ -20,6 +22,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(usersRouter);
 router.use(hallsRouter);
+router.use(archiveRouter); // before bookings: "/bookings/archive" must not hit "/bookings/:id"
 router.use(bookingsRouter);
 router.use(reviewsRouter);
 router.use(maintenanceRouter);
@@ -30,5 +33,6 @@ router.use(auditRouter);
 router.use(publicRouter);
 router.use(featuresRouter);
 router.use(reportsRouter);
+router.use(backupsRouter);
 
 export default router;

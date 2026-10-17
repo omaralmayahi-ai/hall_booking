@@ -5,7 +5,8 @@ import {
   useListNotifications, useMarkNotificationRead, useMarkAllNotificationsRead, useLogout,
   getListNotificationsQueryKey,
 } from "@workspace/api-client-react";
-import { Bell, CheckCheck, ChevronDown, Clock, KeyRound, LogOut, Moon, Palette, PanelRight, RotateCcw, Sun, Type } from "lucide-react";
+import { Bell, CheckCheck, ChevronDown, Clock, KeyRound, LogOut, Moon, Palette, PanelRight, RotateCcw, Sun, Trash2, Type } from "lucide-react";
+import { api } from "@/lib/api";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +35,19 @@ function NotificationsPopover() {
   const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
   const allPath = notificationsPathFor(user?.role);
   const refresh = () => qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+  const readCount = (notifications?.length ?? 0) - unread;
+  const [confirmClear, setConfirmClear] = useState(false);
+  const clearRead = async () => {
+    try {
+      await api("POST", "/notifications/clear-read");
+      refresh();
+    } finally {
+      setConfirmClear(false);
+    }
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setConfirmClear(false); }}>
       <PopoverTrigger asChild>
         <Button size="icon" variant="ghost" className="relative" aria-label="الإشعارات">
           <Bell className="w-4 h-4" />
@@ -90,11 +101,24 @@ function NotificationsPopover() {
             </div>
           )}
         </ScrollArea>
-        {allPath && (
-          <div className="p-2 border-t">
-            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setOpen(false); setLocation(allPath); }}>
-              عرض جميع الإشعارات
-            </Button>
+        {(allPath || readCount > 0) && (
+          <div className="p-2 border-t flex gap-1">
+            {allPath && (
+              <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => { setOpen(false); setLocation(allPath); }}>
+                عرض جميع الإشعارات
+              </Button>
+            )}
+            {readCount > 0 && (
+              confirmClear ? (
+                <Button variant="ghost" size="sm" className="flex-1 text-xs text-rose-600 hover:text-rose-700 font-semibold" onClick={clearRead}>
+                  <Trash2 className="w-3 h-3" />تأكيد حذف {readCount} مقروء
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" className="flex-1 text-xs text-muted-foreground" onClick={() => setConfirmClear(true)}>
+                  <Trash2 className="w-3 h-3" />حذف المقروءة
+                </Button>
+              )
+            )}
           </div>
         )}
       </PopoverContent>

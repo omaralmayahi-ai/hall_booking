@@ -278,7 +278,10 @@ echo ===========================================================================
 set "NODE_ENV=production"
 set "LOG_PRETTY=1"
 pushd "%APP%"
+:run_fg_again
 node "%ENTRY%"
+:: exit code 75 = restart requested (database restore from System Settings)
+if "%errorlevel%"=="75" goto run_fg_again
 popd
 set "LOG_PRETTY="
 goto pause_menu

@@ -6,7 +6,6 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,22 +16,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Archive } from "lucide-react";
 import { CalendarDays, CheckCircle, XCircle, Eye, Filter, UtensilsCrossed, MapPin, Users, Building2, Hash, Phone, Repeat, Clock, FileText, User as UserIcon, RefreshCcw, Plus, Printer, ArrowLeftRight, Search, Armchair, PackageCheck, ClipboardList } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { activityLabel } from "@/lib/labels";
 import { BookingDialog, type BookableHall } from "@/components/booking/booking-dialog";
 import { RelocateDialog } from "@/components/booking/relocate-dialog";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState, Fact, FilterChips, SectionTitle, StatusBadge, Ticket, relativeDay, toneOf, TimeRange } from "@/components/booking/ticket";
+import { todayIso } from "@/lib/calendar";
+import { ArchiveAllButton, isArchivable, useArchive } from "@/components/booking/archive-actions";
 
-const STATUS_INFO: Record<string, { label: string; cls: string }> = {
-  pending: { label: "معلق", cls: "bg-amber-100 text-amber-700" },
-  approved: { label: "موافق عليه", cls: "bg-emerald-100 text-emerald-700" },
-  partially_approved: { label: "موافقة جزئية", cls: "bg-teal-100 text-teal-700" },
-  rejected: { label: "مرفوض", cls: "bg-red-100 text-red-700" },
-  cancelled: { label: "ملغي", cls: "bg-muted text-foreground" },
-  completed: { label: "مكتمل", cls: "bg-primary/10 text-primary" },
-  emergency_cancelled: { label: "ملغي طارئ", cls: "bg-orange-100 text-orange-700" },
-};
 
 function departmentDisplayName(booking: any): string {
   return booking.manualDepartmentName || booking.user?.departmentName || "غير محدد";
@@ -41,8 +35,8 @@ function departmentDisplayName(booking: any): string {
 export default function ManagerBookings() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState("all");
-  const { data: bookings, isLoading } = useListBookings(statusFilter !== "all" ? { status: statusFilter as any } : {});
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "completed" | "closed">("all");
+  const { data: bookings, isLoading } = useListBookings({});
   const { data: halls } = useListHalls({});
   const approve = useApproveBooking();
   const reject = useRejectBooking();
@@ -61,7 +55,9 @@ export default function ManagerBookings() {
   const invalidate = () => qc.invalidateQueries({ queryKey: getListBookingsQueryKey() });
   const openManualDialog = () => setManualDialogOpen(true);
   const q = search.trim();
-  const rows = (bookings ?? []).filter((b: any) =>
+  const groupOf = (b: any) => (b.status === "approved" || b.status === "partially_approved" ? "approved" : ["rejected", "cancelled", "emergency_cancelled"].includes(b.status) ? "closed" : b.status);
+  const countOf = (g: string) => (bookings ?? []).filter((b: any) => groupOf(b) === g).length;
+  const rows = (bookings ?? []).filter((b: any) => statusFilter === "all" || groupOf(b) === statusFilter).filter((b: any) =>
     !q || [departmentDisplayName(b), b.hall?.nameAr, b.hall?.name, activityLabel(b.activityType), b.reason, String(b.id)].some((v) => v?.includes(q)),
   );
 
@@ -139,44 +135,87 @@ export default function ManagerBookings() {
 
   const isPending = approve.isPending || reject.isPending || changeStatus.isPending;
 
-  const BookingActions = ({ booking }: { booking: any }) => (
-    <div className="flex items-center gap-0.5 flex-wrap">
-      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openAction(booking, "view")} title="عرض التفاصيل">
-        <Eye className="w-4 h-4 text-muted-foreground" />
-      </Button>
-      {booking.status === "pending" && (
-        <>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" onClick={() => openAction(booking, "approve")} title="موافقة">
-            <CheckCircle className="w-4 h-4" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => openAction(booking, "reject")} title="رفض">
-            <XCircle className="w-4 h-4" />
-          </Button>
-        </>
-      )}
-      {statusChangeOptions(booking).length > 0 && (
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={() => openAction(booking, "status")} title="تغيير الحالة">
-          <RefreshCcw className="w-4 h-4" />
-        </Button>
-      )}
-      {["pending", "approved", "partially_approved"].includes(booking.status) && (
-        <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-600 hover:bg-sky-50" onClick={() => setRelocateTarget(booking)} title="نقل إلى قاعة أخرى">
-          <ArrowLeftRight className="w-4 h-4" />
-        </Button>
-      )}
-      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => window.open(`/print/booking/${booking.id}`, "_blank")} title="طباعة إشعار الحجز">
-        <Printer className="w-4 h-4 text-muted-foreground" />
-      </Button>
-    </div>
-  );
+  const today = todayIso();
+  const byDateAsc = (a: any, b: any) => (a.startDate + a.startTime).localeCompare(b.startDate + b.startTime);
+  const pendingRows = rows.filter((b: any) => b.status === "pending").sort(byDateAsc);
+  const upcomingRows = rows.filter((b: any) => b.status !== "pending" && (b.endDate || b.startDate) >= today && ["approved", "partially_approved"].includes(b.status)).sort(byDateAsc);
+  const otherRows = rows.filter((b: any) => !pendingRows.includes(b) && !upcomingRows.includes(b)).sort((a: any, b: any) => byDateAsc(b, a));
+
+  const archive = useArchive("/manager/archive");
+  const archivableOthers = otherRows.filter(isArchivable);
+
+  const renderTicket = (booking: any) => {
+    const closed = ["rejected", "cancelled", "emergency_cancelled"].includes(booking.status);
+    const pending = booking.status === "pending";
+    return (
+      <Ticket
+        key={booking.id}
+        date={booking.startDate}
+        tone={toneOf(booking.status)}
+        muted={closed}
+        highlight={pending && booking.startDate <= today}
+        onClick={() => openAction(booking, "view")}
+        actions={
+          <>
+            {pending && (
+              <>
+                <Button size="sm" className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => openAction(booking, "approve")}>
+                  <CheckCircle className="w-4 h-4" />موافقة
+                </Button>
+                <Button size="sm" variant="outline" className="h-9 gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-500/10 hover:text-rose-700" onClick={() => openAction(booking, "reject")}>
+                  <XCircle className="w-4 h-4" />رفض
+                </Button>
+              </>
+            )}
+            {statusChangeOptions(booking).length > 0 && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => openAction(booking, "status")} title="تغيير الحالة" aria-label="تغيير الحالة">
+                <RefreshCcw className="w-4 h-4" />
+              </Button>
+            )}
+            {["pending", "approved", "partially_approved"].includes(booking.status) && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setRelocateTarget(booking)} title="نقل إلى قاعة أخرى" aria-label="نقل إلى قاعة أخرى">
+                <ArrowLeftRight className="w-4 h-4" />
+              </Button>
+            )}
+            {!closed && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => window.open(`/print/booking/${booking.id}`, "_blank")} title="طباعة إشعار الحجز" aria-label="طباعة إشعار الحجز">
+                <Printer className="w-4 h-4" />
+              </Button>
+            )}
+            {isArchivable(booking) && (
+              <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => archive.archiveIds([booking.id])} disabled={archive.busy} title="نقل إلى الأرشيف" aria-label="نقل إلى الأرشيف">
+                <Archive className="w-4 h-4" />
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h3 className="font-bold text-base truncate">{departmentDisplayName(booking)}</h3>
+          <StatusBadge status={booking.status} />
+          {booking.manualDepartmentName && <Badge variant="secondary" className="text-[11px] font-normal">حجز مباشر</Badge>}
+          <span className="text-xs text-muted-foreground tabular-nums">#{booking.id}</span>
+        </div>
+        <p className="text-sm mt-1 truncate">{booking.reason || activityLabel(booking.activityType)}</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+          <Fact icon={Building2} className="text-foreground font-medium">{booking.hall?.nameAr || booking.hall?.name}</Fact>
+          <Fact icon={Clock}><TimeRange start={booking.startTime} end={booking.endTime} /></Fact>
+          <Fact icon={CalendarDays}>{booking.endDate && booking.endDate !== booking.startDate ? `حتى ${formatDate(booking.endDate)}` : relativeDay(booking.startDate)}</Fact>
+          {booking.attendees ? <Fact icon={Users}>{booking.attendees} شخص</Fact> : null}
+          {(booking.needsCatering || booking.needsMeals) && <Fact icon={UtensilsCrossed} className="text-amber-700 dark:text-amber-300">{booking.needsCatering && booking.needsMeals ? "ضيافة ووجبة" : booking.needsCatering ? "ضيافة" : "وجبة"}</Fact>}
+          {booking.isRecurring && <Fact icon={Repeat}>أسبوعي</Fact>}
+        </div>
+      </Ticket>
+    );
+  };
 
   return (
     <>
-      <div className="space-y-5">
+      <div className="space-y-5 max-w-6xl">
         <PageHeader
           icon={ClipboardList}
-          title="إدارة طلبات الحجز"
-          description="مراجعة طلبات حجز القاعات والبت فيها، وطباعة إشعارات الحجز"
+          title="طلبات الحجز"
+          description="راجع الطلبات وقرّر فيها، وانقل الحجز أو اطبع إشعاره"
           actions={
             <Button onClick={openManualDialog}>
               <Plus className="w-4 h-4" />
@@ -185,110 +224,55 @@ export default function ManagerBookings() {
           }
         />
 
-        <div className="flex flex-col md:flex-row gap-2 md:items-center">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+          <div className="relative lg:w-80 shrink-0">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالجهة أو القاعة أو النشاط أو رقم الطلب..." className="pr-9" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالجهة أو القاعة أو رقم الطلب" className="pr-9 h-10" />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">جميع الطلبات</SelectItem>
-                <SelectItem value="pending">قيد الانتظار</SelectItem>
-                <SelectItem value="approved">مقبولة</SelectItem>
-                <SelectItem value="partially_approved">مقبولة جزئياً</SelectItem>
-                <SelectItem value="rejected">مرفوضة</SelectItem>
-                <SelectItem value="cancelled">ملغاة</SelectItem>
-                <SelectItem value="emergency_cancelled">ملغاة طارئ</SelectItem>
-                <SelectItem value="completed">مكتملة</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterChips<typeof statusFilter>
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "all", label: "الكل", count: bookings?.length ?? 0 },
+              { value: "pending", label: "بانتظار القرار", count: countOf("pending"), tone: "amber" },
+              { value: "approved", label: "موافق عليها", count: countOf("approved"), tone: "emerald" },
+              { value: "completed", label: "منتهية", count: countOf("completed"), tone: "sky" },
+              { value: "closed", label: "مرفوضة وملغاة", count: countOf("closed"), tone: "slate" },
+            ]}
+          />
         </div>
 
-        {/* Mobile: cards */}
-        <div className="md:hidden space-y-2.5">
-          {isLoading ? Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />) :
-            !rows.length ? (
-              <div className="text-center py-12 text-muted-foreground rounded-xl border bg-card">
-                <CalendarDays className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />لا توجد طلبات حجز
-              </div>
-            ) : rows.map((booking: any) => {
-              const si = STATUS_INFO[booking.status] ?? { label: booking.status, cls: "bg-muted text-foreground" };
-              return (
-                <div key={booking.id} className="rounded-xl border bg-card p-3.5 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm truncate">{booking.hall?.nameAr || booking.hall?.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{departmentDisplayName(booking)}</p>
-                    </div>
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${si.cls}`}>{si.label}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{formatDate(booking.startDate)}</span>
-                    <span className="inline-flex items-center gap-1" dir="ltr"><Clock className="w-3.5 h-3.5" />{booking.startTime} – {booking.endTime}</span>
-                    <span>{activityLabel(booking.activityType)}</span>
-                  </div>
-                  <BookingActions booking={booking} />
+        {isLoading ? (
+          <div className="space-y-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
+        ) : !bookings?.length ? (
+          <EmptyState icon={CalendarDays} title="لا توجد طلبات حجز بعد" hint="تظهر هنا طلبات الجهات فور تقديمها، ويمكنك أيضاً إنشاء حجز مباشر لجهة." action={<Button onClick={openManualDialog}><Plus className="w-4 h-4" />حجز مباشر لجهة</Button>} />
+        ) : !rows.length ? (
+          <EmptyState icon={Search} title="لا توجد نتائج" hint="جرّب كلمة بحث أخرى أو حالة مختلفة." action={<Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("all"); }}>مسح البحث والتصفية</Button>} />
+        ) : (
+          <div className="space-y-6">
+            {pendingRows.length > 0 && (
+              <section className="space-y-3">
+                <SectionTitle count={pendingRows.length} hint="الأقرب موعداً أولاً">بانتظار قرارك</SectionTitle>
+                {pendingRows.map(renderTicket)}
+              </section>
+            )}
+            {upcomingRows.length > 0 && (
+              <section className="space-y-3">
+                <SectionTitle count={upcomingRows.length}>حجوزات قادمة</SectionTitle>
+                {upcomingRows.map(renderTicket)}
+              </section>
+            )}
+            {otherRows.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <SectionTitle count={otherRows.length}>السابقة والمغلقة</SectionTitle>
+                  <ArchiveAllButton count={archivableOthers.length} busy={archive.busy} onClick={() => archive.archiveIds(archivableOthers.map((b: any) => b.id))} />
                 </div>
-              );
-            })}
-        </div>
-
-        <Card className="hidden md:block">
-          <CardContent className="p-2">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>القاعة</TableHead>
-                  <TableHead>الجهة الطالبة</TableHead>
-                  <TableHead>التاريخ والوقت</TableHead>
-                  <TableHead>النشاط</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>الإجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? Array(6).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    {[1,2,3,4,5,6].map(j => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}
-                  </TableRow>
-                )) : !rows.length ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                      <CalendarDays className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
-                      لا توجد طلبات حجز
-                    </TableCell>
-                  </TableRow>
-                ) : rows.map((booking: any) => {
-                  const si = STATUS_INFO[booking.status] ?? { label: booking.status, cls: "bg-muted text-foreground" };
-                  return (
-                    <TableRow key={booking.id} className="hover:bg-muted/40">
-                      <TableCell className="font-medium text-sm">{booking.hall?.nameAr || booking.hall?.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {departmentDisplayName(booking)}
-                        {booking.manualDepartmentName && (
-                          <Badge variant="secondary" className="text-[10px] mr-1.5">حجز يدوي</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm">{formatDate(booking.startDate)}</p>
-                        <p className="text-xs text-muted-foreground"><span dir="ltr">{booking.startTime} – {booking.endTime}</span></p>
-                      </TableCell>
-                      <TableCell className="text-sm">{activityLabel(booking.activityType)}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${si.cls}`}>{si.label}</span>
-                      </TableCell>
-                      <TableCell><BookingActions booking={booking} /></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                {otherRows.map(renderTicket)}
+              </section>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Action Dialog */}
@@ -304,9 +288,7 @@ export default function ManagerBookings() {
             <div className="space-y-3">
               {/* Status + reference */}
               <div className="flex items-center justify-between">
-                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_INFO[selectedBooking.status]?.cls ?? "bg-muted text-foreground"}`}>
-                  {STATUS_INFO[selectedBooking.status]?.label ?? selectedBooking.status}
-                </span>
+                <StatusBadge status={selectedBooking.status} />
                 <span className="text-xs text-muted-foreground">طلب رقم #{selectedBooking.id}</span>
               </div>
 
@@ -391,7 +373,7 @@ export default function ManagerBookings() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" /> الوقت</p>
-                    <p className="font-medium"><span dir="ltr">{selectedBooking.startTime} – {selectedBooking.endTime}</span></p>
+                    <p className="font-medium"><TimeRange start={selectedBooking.startTime} end={selectedBooking.endTime} className="font-medium" /></p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-0.5">النشاط</p>
